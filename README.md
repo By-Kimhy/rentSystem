@@ -53,6 +53,15 @@ Change the admin password via `.env` before deploying anywhere public.
 - `src/lib/dal.ts` is the real check: `getCurrentUser()` and `requireRole(...)` load the user from the database on every protected page and should be called in every Server Action that changes data.
 - Sign-up, login and logout are Server Actions in `src/app/actions/auth.ts`.
 
+## Properties and rooms
+
+Landlords manage their listings at `/landlord/properties`:
+
+- A property is an apartment, condo or house with an address, city, description and photos.
+- Each room has a monthly rent (USD), optional size, max occupants, an availability status (available, occupied or maintenance), an optional "available from" date, and photos.
+- Every page and Server Action in `src/app/landlord/properties` checks `requireRole("LANDLORD")` and only touches the signed-in landlord's own rows.
+- Photos (JPEG, PNG or WebP, up to 5 MB each) are written to `UPLOAD_DIR` (default `./uploads`) and served by `src/app/api/photos/[fileName]/route.ts`. Back this folder up, or move photos to object storage before running more than one server.
+
 ## Scripts
 
 | Command             | What it does                          |
