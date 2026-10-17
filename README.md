@@ -62,6 +62,30 @@ Landlords manage their listings at `/landlord/properties`:
 - Every page and Server Action in `src/app/landlord/properties` checks `requireRole("LANDLORD")` and only touches the signed-in landlord's own rows.
 - Photos (JPEG, PNG or WebP, up to 5 MB each) are written to `UPLOAD_DIR` (default `./uploads`) and served by `src/app/api/photos/[fileName]/route.ts`. Back this folder up, or move photos to object storage before running more than one server.
 
+## Tenants, leases and rent
+
+Everything a landlord needs to collect rent, under `/landlord`:
+
+| Page | What it does |
+| ---- | ------------ |
+| Dashboard (`/landlord`) | Billed and collected this month, money outstanding and overdue, overdue invoices by days late, leases ending in the next 60 days |
+| Tenants | Tenant profiles (contact, ID, emergency contact), search, balance owed and credit, lease, invoice and payment history |
+| Leases | Rent one room to one or more tenants, with start and end dates (blank end = month-to-month), rent, due day, deposit, grace days and late fee. Save as draft or activate; renew; end on a chosen day |
+| Invoices | Every invoice with its status, a printable invoice page ("Print or save PDF"), extra lines, voiding with a reason |
+| Payments | Record cash, bank transfer, card or mobile wallet payments, see printable receipts, reverse mistakes |
+
+How billing works (`src/lib/billing.ts`):
+
+- **Activating a lease** checks no other active lease on that room overlaps its dates, marks the room occupied and bills the deposit on its own invoice.
+- **Rent invoices** are created automatically for each calendar month, 7 days before the due day. The first and last months are prorated by days occupied.
+- **Payments** pay the oldest unpaid invoice first unless you split them by hand. Anything left over stays as credit and pays the next invoice automatically. A reversal records a matching negative payment, so nothing is ever deleted.
+- **Overdue**: an invoice unpaid after its due date plus the lease's grace days (default 3) turns overdue, and the lease's late fee (flat amount or percent of rent) is added once.
+- **Ending a lease** frees the room, prorates the final month and voids untouched invoices after it. Then the lease page settles the deposit: record deductions with reasons and the refund until nothing is held.
+- Billing is brought up to date whenever a landlord opens a rent page. To keep statuses current overnight too, call `GET /api/cron/billing` once a day with `Authorization: Bearer $CRON_SECRET` (for example from cron, Vercel Cron or a GitHub Actions schedule).
+- Set `BILLING_TIMEZONE` (for example `Asia/Phnom_Penh`) so the day rolls over at local midnight. It defaults to UTC.
+
+A whole house or condo rented to one household is set up as a property with a single room.
+
 ## Scripts
 
 | Command             | What it does                          |

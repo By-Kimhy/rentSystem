@@ -23,6 +23,8 @@ model User {
   updatedAt    DateTime @updatedAt
 
   properties Property[]
+  tenants    Tenant[]
+  payments   Payment[]
 }
 
 enum PropertyType {
@@ -66,6 +68,7 @@ model Room {
   status        RoomStatus @default(AVAILABLE)
   availableFrom DateTime?  @db.Date
   photos        Photo[]
+  leases        Lease[]
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -84,4 +87,207 @@ model Photo {
 
   @@index([propertyId])
   @@index([roomId])
+}
+
+// A person renting from a landlord. Not a login account: a landlord records tenants
+// whether or not they ever sign up.
+model Tenant {
+  id               String        @id @default(cuid())
+  landlordId       String
+  landlord         User          @relation(fields: [landlordId], references: [id], onDelete: Cascade)
+  fullName         String
+  phone            String
+  email            String?
+  idDocType        String?
+  idDocNumber      String?
+  emergencyContact String?
+  notes            String?
+  leases           LeaseTenant[]
+  payments         Payment[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([landlordId])
+}
+
+enum LeaseStatus {
+  DRAFT
+  ACTIVE
+  ENDED
+  TERMINATED
+}
+
+enum LateFeeType {
+  NONE
+  FLAT
+  PERCENT
+}
+
+// A lease rents one room. A whole house or condo is rented as a single room.
+model Lease {
+  id            String               @id @default(cuid())
+  roomId        String
+  // Restrict: a room with lease history can't be deleted out from under it.
+  room          Room                 @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  startDate     DateTime             @db.Date
+  // Null means month-to-month.
+  endDate       DateTime?            @db.Date
+  rentAmount    Decimal              @db.Decimal(10, 2)
+  // Day of the month rent is due, 1 to 28 so every month has it.
+  dueDay        Int
+  depositAmount Decimal              @default(0) @db.Decimal(10, 2)
+  graceDays     Int                  @default(3)
+  lateFeeType   LateFeeType          @default(NONE)
+  lateFeeValue  Decimal              @default(0) @db.Decimal(10, 2)
+  status        LeaseStatus          @default(DRAFT)
+  terminatedOn  DateTime?            @db.Date
+  notes         String?
+  renewedFromId String?              @unique
+  renewedFrom   Lease?               @relation("LeaseRenewal", fields: [renewedFromId], references: [id], onDelete: SetNull)
+  renewedBy     Lease?               @relation("LeaseRenewal")
+  tenants       LeaseTenant[]
+  invoices      Invoice[]
+  payments      Payment[]
+  deposits      DepositTransaction[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@index([roomId, status])
+}
+
+model LeaseTenant {
+  leaseId   String
+  lease     Lease   @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  tenantId  String
+  // Restrict: a tenant on a lease can't be deleted.
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  // The one tenant who receives invoices.
+  isPrimary Boolean @default(false)
+
+  @@id([leaseId, tenantId])
+  @@index([tenantId])
+}
+
+enum InvoiceKind {
+  RENT
+  DEPOSIT
+  OTHER
+}
+
+enum InvoiceStatus {
+  OPEN
+  PARTIAL
+  PAID
+  OVERDUE
+  VOID
+}
+
+model Invoice {
+  id             String              @id @default(cuid())
+  number         Int                 @unique @default(autoincrement())
+  leaseId        String
+  lease          Lease               @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  kind           InvoiceKind
+  // "YYYY-MM" for rent invoices; null for deposit and one-off invoices.
+  period         String?
+  issueDate      DateTime            @db.Date
+  dueDate        DateTime            @db.Date
+  // Both kept in step with the lines and allocations by src/lib/billing.ts.
+  total          Decimal             @db.Decimal(10, 2)
+  amountPaid     Decimal             @default(0) @db.Decimal(10, 2)
+  status         InvoiceStatus       @default(OPEN)
+  lateFeeApplied Boolean             @default(false)
+  voidReason     String?
+  lines          InvoiceLine[]
+  allocations    PaymentAllocation[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  // One rent invoice per lease per month. Null periods don't collide.
+  @@unique([leaseId, period])
+  @@index([status, dueDate])
+}
+
+enum InvoiceLineKind {
+  RENT
+  LATE_FEE
+  DEPOSIT
+  UTILITY
+  OTHER
+}
+
+model InvoiceLine {
+  id          String          @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  kind        InvoiceLineKind
+  description String
+  amount      Decimal         @db.Decimal(10, 2)
+  createdAt   DateTime        @default(now())
+
+  @@index([invoiceId])
+}
+
+enum PaymentMethod {
+  CASH
+  BANK
+  CARD
+  WALLET
+}
+
+// Money received. Never edited or deleted: a mistake is undone by a reversal,
+// a negative payment that mirrors the original's allocations.
+model Payment {
+  id            String              @id @default(cuid())
+  leaseId       String
+  lease         Lease               @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  payerTenantId String?
+  payer         Tenant?             @relation(fields: [payerTenantId], references: [id], onDelete: SetNull)
+  amount        Decimal             @db.Decimal(10, 2)
+  method        PaymentMethod
+  paidOn        DateTime            @db.Date
+  reference     String?
+  notes         String?
+  receivedById  String
+  receivedBy    User                @relation(fields: [receivedById], references: [id], onDelete: Restrict)
+  reversalOfId  String?             @unique
+  reversalOf    Payment?            @relation("PaymentReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversedBy    Payment?            @relation("PaymentReversal")
+  allocations   PaymentAllocation[]
+  createdAt     DateTime            @default(now())
+
+  @@index([leaseId])
+}
+
+model PaymentAllocation {
+  id        String   @id @default(cuid())
+  paymentId String
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount    Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  @@index([paymentId])
+  @@index([invoiceId])
+}
+
+enum DepositTransactionKind {
+  DEDUCTION
+  REFUND
+}
+
+// Move-out settlement. The deposit held is what was paid on the lease's deposit
+// invoice; deductions and refunds take it down to zero.
+model DepositTransaction {
+  id        String                 @id @default(cuid())
+  leaseId   String
+  lease     Lease                  @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  kind      DepositTransactionKind
+  amount    Decimal                @db.Decimal(10, 2)
+  date      DateTime               @db.Date
+  reason    String?
+  createdAt DateTime               @default(now())
+
+  @@index([leaseId])
 }
