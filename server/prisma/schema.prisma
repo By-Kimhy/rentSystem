@@ -100,9 +100,12 @@ model Tenant {
   id               String        @id @default(cuid())
   landlordId       String
   landlord         User          @relation("LandlordTenants", fields: [landlordId], references: [id], onDelete: Cascade)
-  // The tenant's own account, when they came in through a rental application.
+  // The tenant's own account, linked by an approved application or an accepted invite.
   userId           String?
   user             User?         @relation("TenantAccount", fields: [userId], references: [id], onDelete: SetNull)
+  // SHA-256 of the secret in the landlord's invite link; the link itself is never stored.
+  inviteTokenHash  String?       @unique @db.Char(64)
+  invitedAt        DateTime?
   fullName         String @db.VarChar(120)
   phone            String @db.VarChar(40)
   email            String? @db.VarChar(255)

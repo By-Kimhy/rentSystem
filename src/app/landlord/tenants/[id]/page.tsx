@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { TenantResponse } from "@api/contract";
-import { deleteTenant } from "../actions";
+import { deleteTenant, revokeInvite } from "../actions";
 import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/lib/format";
 import { fromCents, toCents } from "@/lib/money";
 import { ConfirmButton } from "@/components/landlord/ConfirmButton";
+import { InviteLink } from "@/components/landlord/InviteLink";
 import { InvoiceTable } from "@/components/landlord/InvoiceTable";
 import { PaymentTable } from "@/components/landlord/PaymentTable";
 import {
@@ -95,6 +96,30 @@ export default async function TenantPage({ params }: PageProps<"/landlord/tenant
           ]}
         />
         {tenant.notes && <p className="whitespace-pre-line text-zinc-700 dark:text-zinc-300">{tenant.notes}</p>}
+      </section>
+
+      <section className={`${cardClass} space-y-3 p-4`}>
+        <h2 className="text-lg font-semibold">Tenant account</h2>
+        {tenant.userId ? (
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Linked to {tenant.fullName}&apos;s account. They can see their lease, invoices and payments, and report
+            payments to you.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Not linked to an account yet. Send an invite link so {tenant.fullName} can see their lease, invoices and
+              payments online.
+              {tenant.invitedAt && ` A link made on ${formatDate(tenant.invitedAt)} is waiting to be used (links last 14 days).`}
+            </p>
+            <InviteLink tenantId={tenant.id} hasInvite={Boolean(tenant.invitedAt)} />
+            {tenant.invitedAt && (
+              <ConfirmButton action={revokeInvite.bind(null, tenant.id)} message="Cancel the current invite link?">
+                Cancel current link
+              </ConfirmButton>
+            )}
+          </>
+        )}
       </section>
 
       <section className="space-y-3">

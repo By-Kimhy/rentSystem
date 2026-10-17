@@ -28,3 +28,18 @@ export async function deleteTenant(tenantId: string) {
   revalidatePath("/landlord/tenants");
   redirect("/landlord/tenants");
 }
+
+// A fresh invite link for the tenant's own account. The token is shown once; only its hash is kept.
+export async function createInvite(tenantId: string): Promise<{ token?: string; error?: string }> {
+  await requireRole("LANDLORD");
+  const result = await attempt(() => api.post<{ token: string }>(`/landlord/tenants/${tenantId}/invite`));
+  if (!result.ok) return { error: result.error };
+  revalidatePath(`/landlord/tenants/${tenantId}`);
+  return { token: result.data.token };
+}
+
+export async function revokeInvite(tenantId: string) {
+  await requireRole("LANDLORD");
+  await api.delete(`/landlord/tenants/${tenantId}/invite`);
+  revalidatePath(`/landlord/tenants/${tenantId}`);
+}
