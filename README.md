@@ -159,3 +159,7 @@ curl -b jar localhost:4000/api/landlord/dashboard
 | `npm run db:seed`   | Create admin and demo accounts                       |
 
 To run the parts on different hosts, set `API_URL` for the web app (where it finds the API), and `API_PORT` and `CORS_ORIGINS` for the API. Both need the same `SESSION_SECRET`.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`. It starts MySQL 8.4, applies the migrations, then runs `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`. Run the same commands locally before pushing.
