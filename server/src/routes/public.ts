@@ -24,6 +24,8 @@ publicRouter.get("/rooms", async (req, res) => {
       rentPrice,
       ...(q.occupants !== null && { maxOccupants: { gte: q.occupants } }),
       property: {
+        // A disabled landlord can't answer applications, so their rooms aren't listed.
+        landlord: { disabledAt: null },
         ...(q.city && { city: { contains: q.city } }),
         ...(q.type && { type: q.type }),
       },
@@ -37,7 +39,7 @@ publicRouter.get("/rooms", async (req, res) => {
 
 publicRouter.get("/rooms/:id", async (req, res) => {
   const room = await prisma.room.findFirst({
-    where: { id: req.params.id, status: "AVAILABLE" },
+    where: { id: req.params.id, status: "AVAILABLE", property: { landlord: { disabledAt: null } } },
     include: listingInclude,
   });
   if (!room) throw new HttpError(404, "Room not found.");

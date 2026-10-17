@@ -36,7 +36,9 @@ export const userListSelect = {
   name: true,
   email: true,
   role: true,
+  disabledAt: true,
   createdAt: true,
+  _count: { select: { properties: true } },
 } satisfies Prisma.UserSelect;
 export type UserListItem = Wire<Prisma.UserGetPayload<{ select: typeof userListSelect }>>;
 
@@ -223,6 +225,30 @@ export type Dashboard = {
   pendingApplications: number;
   pendingPaymentReports: number;
 };
+
+// ---- Admin
+
+export type AdminOverview = {
+  users: { landlords: number; tenants: number; disabled: number };
+  properties: number;
+  rooms: { total: number; occupied: number; available: number };
+  activeLeases: number;
+  pendingApplications: number;
+  // This calendar month, across every landlord.
+  billedCents: number;
+  collectedCents: number;
+};
+
+export const adminPropertySelect = {
+  id: true,
+  name: true,
+  type: true,
+  city: true,
+  createdAt: true,
+  landlord: { select: { name: true, email: true, disabledAt: true } },
+  rooms: { select: { status: true } },
+} satisfies Prisma.PropertySelect;
+export type AdminProperty = Wire<Prisma.PropertyGetPayload<{ select: typeof adminPropertySelect }>>;
 
 // ---- Errors
 

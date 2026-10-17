@@ -47,7 +47,7 @@ export async function login(_state: FormState, formData: FormData): Promise<Form
   } catch (e) {
     // A wrong password is a 401 here, not a lost session, so attempt() doesn't fit.
     if (e instanceof ApiError && e.status === 400) return { errors: e.fieldErrors, values };
-    if (e instanceof ApiError && e.status === 401) return { message: e.message, values };
+    if (e instanceof ApiError && (e.status === 401 || e.status === 403)) return { message: e.message, values };
     throw e;
   }
 

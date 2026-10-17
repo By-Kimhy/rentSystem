@@ -20,6 +20,8 @@ The web app never touches the database. Its pages and Server Actions call the AP
 | Landlord | Sign-up form, choosing "Landlord"               | `/landlord` |
 | Tenant   | Sign-up form, choosing "Tenant"                 | `/tenant`   |
 
+The admin dashboard at `/admin` shows platform totals (landlords, tenants, rooms let, active leases, pending applications, and rent billed and collected this month). It lists the newest 50 accounts and properties, with a search box for the rest, and can disable or re-enable any account except an admin's. A disabled account is signed out at once (its existing sessions stop working) and can't sign in, and a disabled landlord's rooms leave the public listings. Its data stays as it is.
+
 Visiting another role's page sends you to your own. Signed-out visitors are sent to `/login`, except on the public room listings at `/rooms`.
 
 ## Running locally
@@ -121,7 +123,7 @@ All endpoints are under `/api` on port 4000. Bodies are JSON (or multipart where
 | ---- | --------- |
 | Accounts | `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` |
 | Public | `GET /rooms?city=&type=&minRent=&maxRent=&occupants=` (available rooms), `GET /rooms/:id`, `GET /photos/:fileName`, `GET /health` |
-| Admin | `GET /admin/users` |
+| Admin | `GET /admin/overview`, `GET /admin/users?q=`, `GET /admin/properties?q=` (newest 50 of each, with `total`), `POST /admin/users/:id/disable`, `.../enable` |
 | Landlord dashboard | `GET /landlord/dashboard` |
 | Properties and rooms | `GET, POST /landlord/properties`, `GET, PUT, DELETE /landlord/properties/:id`, `POST /landlord/properties/:id/rooms`, `GET, PUT, DELETE /landlord/rooms/:id`, `DELETE /landlord/photos/:id` |
 | Tenants | `GET /landlord/tenants?q=`, `POST /landlord/tenants`, `GET, PUT, DELETE /landlord/tenants/:id` |
