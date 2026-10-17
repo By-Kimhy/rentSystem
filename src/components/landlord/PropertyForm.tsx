@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import type { Property } from "@prisma/client";
+import type { Property } from "@api/contract";
 import { saveProperty } from "@/app/landlord/properties/actions";
 import { PROPERTY_TYPE_LABELS } from "@/lib/format";
 import { Field, PhotoInput, inputClass } from "./fields";

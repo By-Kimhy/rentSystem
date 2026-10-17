@@ -1,4 +1,4 @@
-import type { Photo } from "@prisma/client";
+import type { Photo } from "@api/contract";
 import { deletePhoto } from "@/app/landlord/properties/actions";
 import { photoUrl } from "@/lib/photos";
 import { ConfirmButton } from "./ConfirmButton";

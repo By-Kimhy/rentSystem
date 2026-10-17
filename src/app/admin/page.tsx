@@ -1,5 +1,6 @@
 import { Suspense } from "react";
-import { prisma } from "@/lib/db";
+import type { UserListItem } from "@api/contract";
+import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
 import { ROLE_LABEL } from "@/lib/roles";
 import { DashboardLoading, DashboardShell } from "@/components/dashboard-shell";
@@ -18,10 +19,7 @@ export default function AdminPage() {
 
 async function AdminContent() {
   const admin = await requireRole("ADMIN");
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: "desc" },
-    select: { id: true, name: true, email: true, role: true, createdAt: true },
-  });
+  const { users } = await apiGet<{ users: UserListItem[] }>("/admin/users");
 
   return (
     <>

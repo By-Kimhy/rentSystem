@@ -1,27 +1,23 @@
-// Data Access Layer: the one place that turns the session cookie into a user.
-// Every protected page and Server Action authorizes through here.
+// The one place that turns the session cookie into a user, by asking the API.
+// Every protected page checks the role here; the API checks it again on every call.
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
-import type { Role } from "@prisma/client";
-import { prisma } from "./db";
-import { getSession } from "./session";
+import type { CurrentUser, Role } from "@api/contract";
+import { ApiError, api } from "./api";
 import { ROLE_HOME } from "./roles";
 
-export type CurrentUser = {
-  id: string;
-  name: string;
-  email: string;
-  role: Role;
-};
+export type { CurrentUser };
 
-export async function getOptionalUser(): Promise<CurrentUser | null> {
-  const session = await getSession();
-  if (!session) return null;
-  return prisma.user.findUnique({
-    where: { id: session.userId },
-    select: { id: true, name: true, email: true, role: true },
-  });
-}
+// Cached per request, so a page and its layout share one lookup.
+export const getOptionalUser = cache(async (): Promise<CurrentUser | null> => {
+  try {
+    return (await api.get<{ user: CurrentUser }>("/auth/me")).user;
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) return null;
+    throw e;
+  }
+});
 
 export async function getCurrentUser(): Promise<CurrentUser> {
   const user = await getOptionalUser();

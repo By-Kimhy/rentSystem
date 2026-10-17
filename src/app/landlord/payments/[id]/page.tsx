@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { reversePayment } from "../actions";
+import type { PaymentDetail } from "@api/contract";
+import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
-import { prisma } from "@/lib/db";
 import { PAYMENT_METHOD_LABELS, formatDate, formatRent, invoiceNumber, receiptNumber } from "@/lib/format";
 import { fromCents, toCents } from "@/lib/money";
 import { PrintButton } from "@/components/PrintButton";
@@ -13,19 +13,8 @@ import { BackLink, cardClass, secondaryButtonClass } from "@/components/landlord
 
 export default async function PaymentPage({ params }: PageProps<"/landlord/payments/[id]">) {
   const { id } = await params;
-  const landlord = await requireRole("LANDLORD");
-  const payment = await prisma.payment.findFirst({
-    where: { id, lease: { room: { property: { landlordId: landlord.id } } } },
-    include: {
-      payer: true,
-      receivedBy: { select: { name: true } },
-      allocations: { include: { invoice: true }, orderBy: { createdAt: "asc" } },
-      reversedBy: { select: { id: true } },
-      reversalOf: { select: { id: true } },
-      lease: { include: { room: { include: { property: true } } } },
-    },
-  });
-  if (!payment) notFound();
+  await requireRole("LANDLORD");
+  const { payment } = await apiGet<{ payment: PaymentDetail }>(`/landlord/payments/${id}`);
   const allocated = payment.allocations.reduce((s, a) => s + toCents(a.amount), 0);
   const credit = payment.reversedBy || payment.reversalOfId ? 0 : toCents(payment.amount) - allocated;
 

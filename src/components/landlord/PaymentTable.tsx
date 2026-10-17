@@ -1,11 +1,11 @@
 import Link from "next/link";
-import type { PaymentMethod, Prisma } from "@prisma/client";
+import type { PaymentMethod } from "@api/contract";
 import { PAYMENT_METHOD_LABELS, formatDate, formatRent, receiptNumber } from "@/lib/format";
 import { EmptyState, cardClass, tableClass, tdClass, thClass } from "./ui";
 
 export type PaymentRow = {
   id: string;
-  amount: Prisma.Decimal;
+  amount: string;
   method: PaymentMethod;
   paidOn: Date;
   reference: string | null;

@@ -1,4 +1,4 @@
-import type { InvoiceStatus, LateFeeType, LeaseStatus, PaymentMethod, Prisma, PropertyType, RoomStatus } from "@prisma/client";
+import type { InvoiceStatus, LateFeeType, LeaseStatus, PaymentMethod, PropertyType, RoomStatus } from "@api/contract";
 
 export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
   APARTMENT: "Apartment",
@@ -18,7 +18,8 @@ export const ROOM_STATUS_STYLES: Record<RoomStatus, string> = {
   MAINTENANCE: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
 };
 
-export function formatRent(amount: Prisma.Decimal | number) {
+// Amounts come from the API as decimal strings ("1200.00").
+export function formatRent(amount: number | string) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(amount));
 }
 
@@ -61,7 +62,7 @@ export const TENANT_STATUS_STYLES: Record<TenantStatus, string> = {
   Prospect: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
 };
 
-export function describeLateFee(type: LateFeeType, value: Prisma.Decimal | number) {
+export function describeLateFee(type: LateFeeType, value: number | string) {
   if (type === "NONE") return "None";
   return type === "FLAT" ? formatRent(value) : `${Number(value)}% of rent`;
 }

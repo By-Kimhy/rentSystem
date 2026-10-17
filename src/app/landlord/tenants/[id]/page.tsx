@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import type { TenantResponse } from "@api/contract";
 import { deleteTenant } from "../actions";
-import { syncBilling, leaseCreditCents } from "@/lib/billing";
+import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
-import { prisma } from "@/lib/db";
 import {
   LEASE_STATUS_LABELS,
   LEASE_STATUS_STYLES,
@@ -29,33 +28,11 @@ import {
 
 export default async function TenantPage({ params }: PageProps<"/landlord/tenants/[id]">) {
   const { id } = await params;
-  const landlord = await requireRole("LANDLORD");
-  await syncBilling(landlord.id);
-  const tenant = await prisma.tenant.findFirst({
-    where: { id, landlordId: landlord.id },
-    include: {
-      leases: {
-        orderBy: { lease: { startDate: "desc" } },
-        include: { lease: { include: { room: { include: { property: { select: { name: true } } } } } } },
-      },
-    },
-  });
-  if (!tenant) notFound();
-
-  const leaseIds = tenant.leases.map((l) => l.leaseId);
-  const [invoices, payments, credits] = await Promise.all([
-    prisma.invoice.findMany({ where: { leaseId: { in: leaseIds } }, orderBy: [{ dueDate: "desc" }, { number: "desc" }] }),
-    prisma.payment.findMany({
-      where: { leaseId: { in: leaseIds } },
-      orderBy: [{ paidOn: "desc" }, { createdAt: "desc" }],
-      include: { payer: { select: { fullName: true } } },
-    }),
-    Promise.all(leaseIds.map((leaseId) => leaseCreditCents(leaseId))),
-  ]);
+  await requireRole("LANDLORD");
+  const { tenant, invoices, payments, creditCents: credit } = await apiGet<TenantResponse>(`/landlord/tenants/${id}`);
   const owed = invoices
     .filter((i) => ["OPEN", "PARTIAL", "OVERDUE"].includes(i.status))
     .reduce((s, i) => s + toCents(i.total) - toCents(i.amountPaid), 0);
-  const credit = credits.reduce((s, c) => s + c, 0);
   const status = tenantStatus(tenant.leases.map((l) => l.lease.status));
   const activeLease = tenant.leases.find((l) => l.lease.status === "ACTIVE")?.lease;
 

@@ -1,9 +1,8 @@
 import Link from "next/link";
-import type { InvoiceStatus, Prisma } from "@prisma/client";
+import type { InvoiceStatus } from "@api/contract";
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_STYLES, formatDate, formatRent, invoiceNumber } from "@/lib/format";
-import { daysOverdue } from "@/lib/billing";
 import { fromCents, toCents } from "@/lib/money";
-import { formatPeriod } from "@/lib/dates";
+import { daysOverdue, formatPeriod } from "@/lib/dates";
 import { Badge, EmptyState, cardClass, tableClass, tdClass, thClass } from "./ui";
 
 export type InvoiceRow = {
@@ -12,8 +11,8 @@ export type InvoiceRow = {
   kind: "RENT" | "DEPOSIT" | "OTHER";
   period: string | null;
   dueDate: Date;
-  total: Prisma.Decimal;
-  amountPaid: Prisma.Decimal;
+  total: string;
+  amountPaid: string;
   status: InvoiceStatus;
   tenantName?: string;
   roomLabel?: string;

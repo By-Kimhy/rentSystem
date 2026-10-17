@@ -1,9 +1,10 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { SESSION_COOKIE, SESSION_MAX_AGE, decrypt, encrypt, type SessionPayload } from "./jwt";
+import { SESSION_COOKIE, SESSION_MAX_AGE } from "./jwt";
 
-export async function createSession(payload: SessionPayload) {
-  const token = await encrypt(payload);
+// The API signs the session token; the web app keeps it in an httpOnly cookie and sends it
+// back to the API on every call (see api.ts).
+export async function createSession(token: string) {
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -11,10 +12,6 @@ export async function createSession(payload: SessionPayload) {
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });
-}
-
-export async function getSession() {
-  return decrypt((await cookies()).get(SESSION_COOKIE)?.value);
 }
 
 export async function deleteSession() {

@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { deleteProperty, deleteRoom } from "../actions";
+import type { PropertyDetail } from "@api/contract";
+import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
-import { prisma } from "@/lib/db";
 import {
   PROPERTY_TYPE_LABELS,
   ROOM_STATUS_LABELS,
@@ -16,18 +16,8 @@ import { PhotoGrid } from "@/components/landlord/PhotoGrid";
 
 export default async function PropertyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const landlord = await requireRole("LANDLORD");
-  const property = await prisma.property.findFirst({
-    where: { id, landlordId: landlord.id },
-    include: {
-      photos: { orderBy: { createdAt: "asc" } },
-      rooms: {
-        orderBy: { name: "asc" },
-        include: { photos: { take: 1, orderBy: { createdAt: "asc" } }, _count: { select: { leases: true } } },
-      },
-    },
-  });
-  if (!property) notFound();
+  await requireRole("LANDLORD");
+  const { property } = await apiGet<{ property: PropertyDetail }>(`/landlord/properties/${id}`);
   const hasLeases = property.rooms.some((r) => r._count.leases > 0);
 
   return (

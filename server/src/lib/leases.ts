@@ -1,12 +1,12 @@
-import "server-only";
 import type { Prisma } from "@prisma/client";
-import { prisma } from "./db";
+import { prisma } from "../db.js";
+import { HttpError } from "../errors.js";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
 export async function ownedLease(leaseId: string, landlordId: string) {
   const lease = await prisma.lease.findFirst({ where: { id: leaseId, room: { property: { landlordId } } } });
-  if (!lease) throw new Error("Lease not found");
+  if (!lease) throw new HttpError(404, "Lease not found.");
   return lease;
 }
 

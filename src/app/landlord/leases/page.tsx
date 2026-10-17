@@ -1,8 +1,7 @@
 import Link from "next/link";
-import type { LeaseStatus } from "@prisma/client";
+import type { LeaseListItem } from "@api/contract";
+import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
-import { addDays, today } from "@/lib/dates";
-import { prisma } from "@/lib/db";
 import { LEASE_STATUS_LABELS, LEASE_STATUS_STYLES, formatDate, formatRent } from "@/lib/format";
 import {
   Badge,
@@ -26,26 +25,10 @@ const FILTERS = [
 ];
 
 export default async function LeasesPage({ searchParams }: PageProps<"/landlord/leases">) {
-  const landlord = await requireRole("LANDLORD");
+  await requireRole("LANDLORD");
   const { show: rawShow } = await searchParams;
   const show = typeof rawShow === "string" ? rawShow : "";
-  const now = today();
-  const statusFilter =
-    show === "ACTIVE" || show === "DRAFT"
-      ? { status: show as LeaseStatus }
-      : show === "past"
-        ? { status: { in: ["ENDED", "TERMINATED"] as LeaseStatus[] } }
-        : show === "ending"
-          ? { status: "ACTIVE" as const, endDate: { gte: now, lte: addDays(now, 60) } }
-          : {};
-  const leases = await prisma.lease.findMany({
-    where: { room: { property: { landlordId: landlord.id } }, ...statusFilter },
-    orderBy: [{ startDate: "desc" }],
-    include: {
-      room: { select: { name: true, property: { select: { name: true } } } },
-      tenants: { include: { tenant: { select: { fullName: true } } }, orderBy: { isPrimary: "desc" } },
-    },
-  });
+  const { leases } = await apiGet<{ leases: LeaseListItem[] }>("/landlord/leases", { show });
 
   return (
     <div className="space-y-6">

@@ -1,19 +1,13 @@
 import Link from "next/link";
+import type { PropertyCard } from "@api/contract";
+import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
-import { prisma } from "@/lib/db";
 import { PROPERTY_TYPE_LABELS, formatRent } from "@/lib/format";
 import { photoUrl } from "@/lib/photos";
 
 export default async function PropertiesPage() {
-  const landlord = await requireRole("LANDLORD");
-  const properties = await prisma.property.findMany({
-    where: { landlordId: landlord.id },
-    orderBy: { createdAt: "desc" },
-    include: {
-      photos: { take: 1, orderBy: { createdAt: "asc" } },
-      rooms: { select: { status: true, rentPrice: true } },
-    },
-  });
+  await requireRole("LANDLORD");
+  const { properties } = await apiGet<{ properties: PropertyCard[] }>("/landlord/properties");
 
   return (
     <div className="space-y-6">

@@ -8,9 +8,9 @@ import { BackLink, EmptyState, linkClass } from "@/components/landlord/ui";
 export const metadata = { title: "New lease · RentSystem" };
 
 export default async function NewLeasePage({ searchParams }: PageProps<"/landlord/leases/new">) {
-  const landlord = await requireRole("LANDLORD");
+  await requireRole("LANDLORD");
   const { tenant, room } = await searchParams;
-  const { properties, tenants } = await leaseFormOptions(landlord.id);
+  const { properties, tenants } = await leaseFormOptions();
 
   return (
     <div className="max-w-2xl space-y-6">

@@ -1,14 +1,13 @@
-import { notFound } from "next/navigation";
+import type { TenantResponse } from "@api/contract";
+import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
-import { prisma } from "@/lib/db";
 import { TenantForm } from "@/components/landlord/TenantForm";
 import { BackLink } from "@/components/landlord/ui";
 
 export default async function EditTenantPage({ params }: PageProps<"/landlord/tenants/[id]/edit">) {
   const { id } = await params;
-  const landlord = await requireRole("LANDLORD");
-  const tenant = await prisma.tenant.findFirst({ where: { id, landlordId: landlord.id } });
-  if (!tenant) notFound();
+  await requireRole("LANDLORD");
+  const { tenant } = await apiGet<TenantResponse>(`/landlord/tenants/${id}`);
   return (
     <div className="max-w-2xl space-y-6">
       <BackLink href={`/landlord/tenants/${id}`}>{tenant.fullName}</BackLink>

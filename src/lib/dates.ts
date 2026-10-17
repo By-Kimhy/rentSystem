@@ -61,3 +61,7 @@ export function formatPeriod(period: string): string {
 
 export const maxDate = (a: Date, b: Date) => (a > b ? a : b);
 export const minDate = (a: Date, b: Date) => (a < b ? a : b);
+
+export function daysOverdue(dueDate: Date, on = today()): number {
+  return Math.max(0, daysBetween(dueDate, on));
+}
