@@ -99,7 +99,10 @@ export default async function ApplicationPage({ params }: PageProps<"/landlord/a
       )}
 
       {a.status === "REJECTED" && a.decidedAt && (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">Declined {formatDate(a.decidedAt)}.</p>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          Declined {formatDate(a.decidedAt)}
+          {a.declineReason ? ` automatically: ${a.declineReason}` : "."}
+        </p>
       )}
     </div>
   );

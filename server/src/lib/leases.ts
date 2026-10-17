@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Lease, Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import { HttpError } from "../errors.js";
 
@@ -39,5 +39,37 @@ export async function syncRoomStatus(db: Db, roomId: string) {
     await db.room.update({ where: { id: roomId }, data: { status: "OCCUPIED" } });
   } else if (active === 0 && room.status === "OCCUPIED") {
     await db.room.update({ where: { id: roomId }, data: { status: "AVAILABLE" } });
+  }
+}
+
+export const ROOM_LET_REASON = "This room has been let to another tenant.";
+
+// Once a lease is active, close the room's pending applications whose move-in date falls within
+// it: approve the ones from people on the lease, decline the rest. Applications for after a
+// fixed-term lease ends stay open.
+export async function settleApplications(db: Db, lease: Pick<Lease, "id" | "roomId" | "endDate">) {
+  const pending = await db.application.findMany({
+    where: {
+      roomId: lease.roomId,
+      status: "PENDING",
+      ...(lease.endDate ? { moveInDate: { lte: lease.endDate } } : {}),
+    },
+    select: { id: true, applicantId: true },
+  });
+  if (pending.length === 0) return;
+  const onLease = await db.leaseTenant.findMany({
+    where: { leaseId: lease.id, tenant: { userId: { in: pending.map((a) => a.applicantId) } } },
+    select: { tenant: { select: { id: true, userId: true } } },
+  });
+  const tenantOf = new Map(onLease.map((lt) => [lt.tenant.userId, lt.tenant.id]));
+  const decidedAt = new Date();
+  for (const a of pending) {
+    const tenantId = tenantOf.get(a.applicantId);
+    await db.application.update({
+      where: { id: a.id },
+      data: tenantId
+        ? { status: "APPROVED", decidedAt, tenantId }
+        : { status: "REJECTED", decidedAt, declineReason: ROOM_LET_REASON },
+    });
   }
 }

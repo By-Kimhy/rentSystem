@@ -113,6 +113,58 @@ describe("rental applications", () => {
     expect(all.body.applications.map((a: { status: string }) => a.status)).toEqual(["REJECTED", "WITHDRAWN"]);
   });
 
+  it("closes the room's other pending applications when a lease is activated", async () => {
+    const { landlord, roomId } = await listedRoom();
+    const apply = async (moveInDate: string) => {
+      const t = await signUp("TENANT");
+      const res = await t.agent
+        .post("/api/tenant/applications")
+        .send({ roomId, phone: "012 000 000", moveInDate, occupants: 1 })
+        .expect(201);
+      return { ...t, id: res.body.application.id as string };
+    };
+    const winner = await apply(nextWeek());
+    const other = await apply(nextWeek());
+    const later = await apply(isoDate(addDays(today(), 400)));
+
+    // The winner's first application is approved, which links their account to a tenant record.
+    // A second application from them is still pending when the landlord activates a one-year lease.
+    const approved = await landlord.agent.post(`/api/landlord/applications/${winner.id}/approve`).expect(200);
+    const again = await winner.agent
+      .post("/api/tenant/applications")
+      .send({ roomId, phone: "012 000 000", moveInDate: nextWeek(), occupants: 1 })
+      .expect(201);
+    await landlord.agent
+      .post("/api/landlord/leases")
+      .send({
+        roomId,
+        primaryTenantId: approved.body.application.tenant.id,
+        startDate: nextWeek(),
+        endDate: isoDate(addDays(today(), 7 + 364)),
+        dueDay: 1,
+        depositAmount: 0,
+        graceDays: 3,
+        lateFeeType: "NONE",
+        lateFeeValue: 0,
+        intent: "activate",
+      })
+      .expect(201);
+
+    const status = async (t: typeof winner, id: string) =>
+      (await t.agent.get("/api/tenant/applications").expect(200)).body.applications.find(
+        (a: { id: string }) => a.id === id,
+      );
+    expect(await status(winner, again.body.application.id)).toMatchObject({ status: "APPROVED", declineReason: null });
+    expect(await status(other, other.id)).toMatchObject({
+      status: "REJECTED",
+      declineReason: "This room has been let to another tenant.",
+    });
+    // Moving in after the lease ends: still open.
+    expect(await status(later, later.id)).toMatchObject({ status: "PENDING" });
+    const pending = await landlord.agent.get("/api/landlord/applications").expect(200);
+    expect(pending.body.applications.map((a: { id: string }) => a.id)).toEqual([later.id]);
+  });
+
   it("refuses applications for rooms that are not available", async () => {
     const { landlord, roomId } = await listedRoom();
     await landlord.agent

@@ -311,22 +311,24 @@ enum ApplicationStatus {
 // A tenant account asking to rent a listed room. Approving it links (or creates) the
 // landlord's tenant record for the applicant; the landlord then writes the lease.
 model Application {
-  id          String            @id @default(cuid())
-  roomId      String
-  room        Room              @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  applicantId String
-  applicant   User              @relation(fields: [applicantId], references: [id], onDelete: Cascade)
-  phone       String            @db.VarChar(40)
-  moveInDate  DateTime          @db.Date
-  occupants   Int
-  message     String?           @db.Text
-  status      ApplicationStatus @default(PENDING)
-  decidedAt   DateTime?
+  id            String            @id @default(cuid())
+  roomId        String
+  room          Room              @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  applicantId   String
+  applicant     User              @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  phone         String            @db.VarChar(40)
+  moveInDate    DateTime          @db.Date
+  occupants     Int
+  message       String?           @db.Text
+  status        ApplicationStatus @default(PENDING)
+  decidedAt     DateTime?
+  // Shown to the applicant when it was declined automatically, e.g. the room was let.
+  declineReason String?           @db.VarChar(255)
   // Set on approval.
-  tenantId    String?
-  tenant      Tenant?           @relation(fields: [tenantId], references: [id], onDelete: SetNull)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  tenantId      String?
+  tenant        Tenant?           @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@index([roomId, status])
   @@index([applicantId])

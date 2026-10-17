@@ -145,7 +145,7 @@ async function TenantContent() {
                     Applied {formatDate(a.createdAt)}.{" "}
                     {a.status === "APPROVED" && leasedRooms.has(a.room.id)
                       ? "Approved. Your lease is shown above."
-                      : NEXT_STEP[a.status]}
+                      : (a.declineReason ?? NEXT_STEP[a.status])}
                   </p>
                 </div>
                 {a.status === "PENDING" && (
