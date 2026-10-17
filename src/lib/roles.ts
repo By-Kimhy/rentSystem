@@ -1,4 +1,4 @@
-import type { Role } from "@prisma/client";
+import type { Role } from "@api/contract";
 
 export const ROLE_HOME: Record<Role, string> = {
   ADMIN: "/admin",

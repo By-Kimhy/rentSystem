@@ -1,5 +1,5 @@
 // Optimistic checks only: reads the signed cookie without touching the database.
-// Real authorization happens in src/lib/dal.ts.
+// Real authorization happens in the API, checked again on every request.
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, decrypt } from "@/lib/jwt";
 import { ROLE_HOME } from "@/lib/roles";

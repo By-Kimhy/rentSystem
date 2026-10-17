@@ -1,11 +1,10 @@
 "use server";
 
-import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
-import { z } from "zod";
-import { prisma } from "@/lib/db";
+import type { AuthResponse } from "@api/contract";
+import { ApiError, api, attempt } from "@/lib/api";
+import { ROLE_HOME } from "@/lib/roles";
 import { createSession, deleteSession } from "@/lib/session";
-import { ROLE_HOME, SIGNUP_ROLES } from "@/lib/roles";
 
 export type FormState =
   | {
@@ -15,69 +14,44 @@ export type FormState =
     }
   | undefined;
 
-const SignupSchema = z.object({
-  name: z.string().trim().min(2, "Name must be at least 2 characters."),
-  email: z.email("Enter a valid email.").trim().toLowerCase(),
-  password: z.string().min(8, "Password must be at least 8 characters."),
-  role: z.enum(SIGNUP_ROLES, "Choose landlord or tenant."),
-});
-
-const LoginSchema = z.object({
-  email: z.email("Enter a valid email.").trim().toLowerCase(),
-  password: z.string().min(1, "Enter your password."),
-});
-
 // Only allow same-site relative paths, so `?next=` can't redirect off-site.
 function safeNext(value: FormDataEntryValue | null) {
   const next = typeof value === "string" ? value : "";
   return next.startsWith("/") && !next.startsWith("//") ? next : null;
 }
 
+const field = (formData: FormData, key: string) => String(formData.get(key) ?? "");
+
 export async function signup(_state: FormState, formData: FormData): Promise<FormState> {
-  const raw = {
-    name: String(formData.get("name") ?? ""),
-    email: String(formData.get("email") ?? ""),
-    password: String(formData.get("password") ?? ""),
-    role: String(formData.get("role") ?? ""),
+  const body = {
+    name: field(formData, "name"),
+    email: field(formData, "email"),
+    password: field(formData, "password"),
+    role: field(formData, "role"),
   };
-  const parsed = SignupSchema.safeParse(raw);
-  const values = { name: raw.name, email: raw.email, role: raw.role };
-  if (!parsed.success) {
-    return { errors: z.flattenError(parsed.error).fieldErrors, values };
-  }
+  const values = { name: body.name, email: body.email, role: body.role };
+  const result = await attempt(() => api.post<AuthResponse>("/auth/signup", body));
+  if (!result.ok) return { errors: result.fieldErrors, message: result.fieldErrors ? undefined : result.error, values };
 
-  const { name, email, password, role } = parsed.data;
-  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
-  if (existing) {
-    return { errors: { email: ["An account with this email already exists."] }, values };
-  }
-
-  const user = await prisma.user.create({
-    data: { name, email, role, passwordHash: await bcrypt.hash(password, 12) },
-  });
-  await createSession({ userId: user.id, role: user.role });
-  redirect(ROLE_HOME[user.role]);
+  await createSession(result.data.token);
+  redirect(ROLE_HOME[result.data.user.role]);
 }
 
 export async function login(_state: FormState, formData: FormData): Promise<FormState> {
-  const raw = {
-    email: String(formData.get("email") ?? ""),
-    password: String(formData.get("password") ?? ""),
-  };
-  const parsed = LoginSchema.safeParse(raw);
-  const values = { email: raw.email };
-  if (!parsed.success) {
-    return { errors: z.flattenError(parsed.error).fieldErrors, values };
+  const body = { email: field(formData, "email"), password: field(formData, "password") };
+  const values = { email: body.email };
+  let result;
+  try {
+    result = await api.post<AuthResponse>("/auth/login", body);
+  } catch (e) {
+    // A wrong password is a 401 here, not a lost session, so attempt() doesn't fit.
+    if (e instanceof ApiError && e.status === 400) return { errors: e.fieldErrors, values };
+    if (e instanceof ApiError && e.status === 401) return { message: e.message, values };
+    throw e;
   }
 
-  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  const ok = user && (await bcrypt.compare(parsed.data.password, user.passwordHash));
-  if (!user || !ok) {
-    return { message: "Incorrect email or password.", values };
-  }
-
-  await createSession({ userId: user.id, role: user.role });
-  redirect(safeNext(formData.get("next")) ?? ROLE_HOME[user.role]);
+  await createSession(result.token);
+  redirect(safeNext(formData.get("next")) ?? ROLE_HOME[result.user.role]);
 }
 
 export async function logout() {
