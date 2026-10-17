@@ -20,4 +20,9 @@ export const config = {
   production: process.env.NODE_ENV === "production",
   sessionSecret: () => required("SESSION_SECRET"),
   uploadDir: () => path.resolve(repoRoot, process.env.UPLOAD_DIR ?? "./uploads"),
+  // Outgoing email. Without SMTP_URL, messages are only logged.
+  smtpUrl: () => process.env.SMTP_URL || null,
+  mailFrom: () => process.env.MAIL_FROM || "RentSystem <no-reply@rentsystem.local>",
+  // The web app's public address, for links in emails.
+  appUrl: () => (process.env.APP_URL || "http://localhost:3000").replace(/\/+$/, ""),
 };

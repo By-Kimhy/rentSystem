@@ -110,10 +110,29 @@ How billing works (`server/src/lib/billing.ts`):
 - **Payments** pay the oldest unpaid invoice first unless you split them by hand. Anything left over stays as credit and pays the next invoice automatically. A reversal records a matching negative payment, so nothing is ever deleted.
 - **Overdue**: an invoice unpaid after its due date plus the lease's grace days (default 3) turns overdue, and the lease's late fee (flat amount or percent of rent) is added once.
 - **Ending a lease** frees the room, prorates the final month and voids untouched invoices after it. Then the lease page settles the deposit: record deductions with reasons and the refund until nothing is held.
-- Billing is brought up to date whenever a landlord opens a rent page. To keep statuses current overnight too, call `POST http://localhost:4000/api/cron/billing` once a day with `Authorization: Bearer $CRON_SECRET` (for example from cron or a GitHub Actions schedule).
+- Billing is brought up to date whenever a landlord opens a rent page. Also call `POST http://localhost:4000/api/cron/billing` once a day with `Authorization: Bearer $CRON_SECRET` (for example from cron or a GitHub Actions schedule). It keeps statuses current overnight and sends the invoice reminder emails (see below), which nothing else sends.
 - Set `BILLING_TIMEZONE` (for example `Asia/Phnom_Penh`) so the day rolls over at local midnight. It defaults to UTC.
 
 A whole house or condo rented to one household is set up as a property with a single room.
+
+## Emails
+
+The API emails people when something needs their attention:
+
+| When | Who |
+| ---- | --- |
+| A tenant applies for a room | The landlord |
+| An application is approved or declined, including declined automatically because the room was let | The applicant |
+| A tenant reports a payment | The landlord |
+| A reported payment is confirmed (with the amount recorded) or rejected (with the reason) | The tenant |
+| The landlord clicks "Email a link to …" on a tenant's page | That tenant, with their invite link |
+| An invoice is due within 3 days, or has become overdue (in the last 30 days) | Every tenant on the lease |
+
+The invoice emails are sent by the daily billing job (`POST /api/cron/billing`). Each is sent at most once per invoice. Tenants are emailed at their account's address if it's linked, otherwise at the address on their tenant record. Every email links back to the page where the reader can act.
+
+Mail goes through any SMTP server set in `SMTP_URL`. `MAIL_FROM` is the sender, and `APP_URL` is the web address used in links. With `SMTP_URL` unset, nothing is sent and the API logs each message's subject instead. Sending never holds up or fails the request that caused it. Under `npm test`, messages are collected in memory for the tests to check.
+
+To see the emails while developing, run [Mailpit](https://mailpit.axllent.org/) (one binary, or `docker run -p 8025:8025 -p 1025:1025 axllent/mailpit`), set `SMTP_URL="smtp://localhost:1025"`, and open http://localhost:8025. For production, use your provider's SMTP address, for example `smtps://resend:<API_KEY>@smtp.resend.com:465`.
 
 ## API
 
@@ -132,7 +151,7 @@ All endpoints are under `/api` on port 4000. Bodies are JSON (or multipart where
 | Payments | `GET /landlord/payments`, `GET /landlord/payments/options?lease=`, `POST /landlord/payments`, `GET /landlord/payments/:id`, `POST /landlord/payments/:id/reverse` |
 | Applications (tenant) | `GET, POST /tenant/applications`, `POST /tenant/applications/:id/withdraw` |
 | Tenant's own rentals | `GET /tenant/home` (leases, invoices, payments, payment reports), `GET /tenant/invoices/:id` |
-| Tenant invites | `POST, DELETE /landlord/tenants/:id/invite`, `GET /invites/:token` (public), `POST /tenant/invites/:token/accept` |
+| Tenant invites | `POST, DELETE /landlord/tenants/:id/invite` (`{ "email": true }` also emails the link), `GET /invites/:token` (public), `POST /tenant/invites/:token/accept` |
 | Payment reports | `POST /tenant/payment-reports`, `POST /tenant/payment-reports/:id/cancel`, `GET /landlord/payment-reports?show=all`, `POST /landlord/payment-reports/:id/confirm`, `.../reject` |
 | Applications (landlord) | `GET /landlord/applications?show=all`, `GET /landlord/applications/:id`, `POST /landlord/applications/:id/approve`, `.../reject` |
 | Billing job | `POST /cron/billing` with `Authorization: Bearer $CRON_SECRET` |

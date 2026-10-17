@@ -5,6 +5,8 @@ import { Router } from "express";
 import { currentUser } from "../auth.js";
 import { prisma } from "../db.js";
 import { HttpError } from "../errors.js";
+import { tenantInvite } from "../lib/emails.js";
+import { notify } from "../lib/mail.js";
 
 export const INVITE_DAYS = 14;
 
@@ -27,17 +29,24 @@ const gone = () => new HttpError(404, "This invite link has expired or was alrea
 
 export const landlordInvitesRouter = Router();
 
-// Creates a new link (replacing any earlier one). The token is returned once and only its hash is kept.
+// Creates a new link (replacing any earlier one). The token is returned once and only its hash is
+// kept. With `{ "email": true }` the link is also emailed to the address on the tenant record.
 landlordInvitesRouter.post("/tenants/:id/invite", async (req, res) => {
+  const landlord = currentUser(req);
   const tenant = await prisma.tenant.findFirst({
-    where: { id: req.params.id, landlordId: currentUser(req).id },
-    select: { id: true, userId: true },
+    where: { id: req.params.id, landlordId: landlord.id },
+    select: { id: true, userId: true, fullName: true, email: true },
   });
   if (!tenant) throw new HttpError(404, "Tenant not found.");
   if (tenant.userId) throw new HttpError(409, "This tenant is already linked to their account.");
   const token = randomBytes(24).toString("base64url");
   const invitedAt = new Date();
+  const sendEmail = req.body?.email === true || req.body?.email === "true";
+  if (sendEmail && !tenant.email) {
+    throw new HttpError(400, "Add the tenant's email address first.", { email: ["Add the tenant's email address first."] });
+  }
   await prisma.tenant.update({ where: { id: tenant.id }, data: { inviteTokenHash: hash(token), invitedAt } });
+  if (sendEmail) notify(tenantInvite(tenant.email!, tenant.fullName, landlord.name, token, INVITE_DAYS));
   res.status(201).json({ token, expiresAt: new Date(invitedAt.getTime() + INVITE_DAYS * 86_400_000) });
 });
 

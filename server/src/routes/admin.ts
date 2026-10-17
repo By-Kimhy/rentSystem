@@ -6,6 +6,7 @@ import { HttpError } from "../errors.js";
 import { syncBilling } from "../lib/billing.js";
 import { addDays, nextPeriod, periodOf, periodStart, today } from "../lib/dates.js";
 import { toCents } from "../lib/money.js";
+import { sendInvoiceReminders } from "../lib/reminders.js";
 
 export const adminRouter = Router();
 adminRouter.use(requireRole("ADMIN"));
@@ -96,8 +97,8 @@ adminRouter.post("/users/:id/enable", async (req, res) => {
 
 // Daily billing run for a scheduler (cron, GitHub Actions…):
 //   curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://localhost:4000/api/cron/billing
-// The rent endpoints also bring billing up to date whenever a landlord opens them,
-// so this only matters for keeping statuses current while nobody is looking.
+// The rent endpoints also bring billing up to date whenever a landlord opens them, but the
+// invoice reminder emails (lib/reminders.ts) only go out from here, so run it daily.
 export const cronRouter = Router();
 
 cronRouter.all("/billing", async (req, res) => {
@@ -107,5 +108,6 @@ cronRouter.all("/billing", async (req, res) => {
     return;
   }
   await syncBilling();
-  res.json({ ok: true });
+  const reminders = await sendInvoiceReminders();
+  res.json({ ok: true, reminders });
 });
