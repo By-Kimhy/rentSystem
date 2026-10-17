@@ -182,6 +182,35 @@ curl -b jar localhost:4000/api/landlord/dashboard
 
 To run the parts on different hosts, set `API_URL` for the web app (where it finds the API), and `API_PORT` and `CORS_ORIGINS` for the API. Both need the same `SESSION_SECRET`.
 
+## Deploying with Docker
+
+`docker-compose.yml` runs the whole app on one server with these services:
+
+| Service | What it does |
+| ------- | ------------ |
+| `db` | MySQL 8.4 |
+| `migrate` | Applies any new migrations, then exits; the API waits for it |
+| `api` | The Express API |
+| `web` | The Next.js site, the only service exposed (port `WEB_PORT`, default 3000) |
+| `billing` | Calls the daily billing job (including invoice reminder emails) a minute after starting and then every 24 hours |
+
+Database rows and uploaded photos live in the named volumes `db-data` and `uploads`. Every service runs from one image built from `Dockerfile`, each with its own command.
+
+```bash
+cp .env.deploy.example .env.deploy        # fill in APP_URL, passwords, secrets, email
+docker compose --env-file .env.deploy up -d --build
+docker compose --env-file .env.deploy run --rm api npm run db:seed   # once: creates the admin account
+```
+
+To update, pull the new code and run the `up -d --build` command again. New migrations apply on start.
+
+Notes:
+
+- **HTTPS is required.** With `NODE_ENV=production`, the sign-in cookie is only sent over HTTPS (browsers make an exception for `localhost`). Put a reverse proxy in front of `WEB_PORT`, for example Caddy (`rent.example.com { reverse_proxy localhost:3000 }`, which also gets the certificate) or nginx with Let's Encrypt. Set `APP_URL` to the `https://` address.
+- **The seed doesn't create demo accounts in production**, only the admin from `ADMIN_EMAIL` and `ADMIN_PASSWORD`.
+- **Back up the `db-data` and `uploads` volumes.**
+- **The image is about 3 GB uncompressed** (much less to download). It uses the full `node:22-bookworm` base because Prisma needs OpenSSL, and it keeps dev tools because the migration and seed commands use them.
+
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every pull request and every push to `main`. It starts MySQL 8.4, applies the migrations, then runs `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`. Run the same commands locally before pushing.
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`. It starts MySQL 8.4, applies the migrations, then runs `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`. A second job builds the Docker image and checks `docker-compose.yml`. Run the same commands locally before pushing.

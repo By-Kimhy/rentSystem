@@ -1,0 +1,11 @@
+node_modules
+server/node_modules
+.next
+server/dist
+uploads
+coverage
+.git
+.github
+.claude
+.env*
+!.env.example

@@ -47,3 +47,6 @@ next-env.d.ts
 
 # API build output
 /server/dist
+
+# Docker Compose deployment settings (the .example is committed)
+!.env.deploy.example
