@@ -21,4 +21,67 @@ model User {
   role         Role     @default(TENANT)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  properties Property[]
+}
+
+enum PropertyType {
+  APARTMENT
+  CONDO
+  HOUSE
+}
+
+enum RoomStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+}
+
+model Property {
+  id          String       @id @default(cuid())
+  landlordId  String
+  landlord    User         @relation(fields: [landlordId], references: [id], onDelete: Cascade)
+  name        String
+  type        PropertyType
+  address     String
+  city        String
+  description String?
+  rooms       Room[]
+  photos      Photo[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([landlordId])
+}
+
+model Room {
+  id            String     @id @default(cuid())
+  propertyId    String
+  property      Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name          String
+  rentPrice     Decimal    @db.Decimal(10, 2)
+  sizeSqm       Decimal?   @db.Decimal(7, 2)
+  maxOccupants  Int        @default(1)
+  description   String?
+  status        RoomStatus @default(AVAILABLE)
+  availableFrom DateTime?  @db.Date
+  photos        Photo[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([propertyId])
+}
+
+// A photo belongs to either a property or one of its rooms.
+model Photo {
+  id         String    @id @default(cuid())
+  fileName   String    @unique
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomId     String?
+  room       Room?     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+
+  @@index([propertyId])
+  @@index([roomId])
 }
