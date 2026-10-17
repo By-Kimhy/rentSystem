@@ -20,7 +20,7 @@ The web app never touches the database. Its pages and Server Actions call the AP
 | Landlord | Sign-up form, choosing "Landlord"               | `/landlord` |
 | Tenant   | Sign-up form, choosing "Tenant"                 | `/tenant`   |
 
-Visiting another role's page sends you to your own. Signed-out visitors are sent to `/login`.
+Visiting another role's page sends you to your own. Signed-out visitors are sent to `/login`, except on the public room listings at `/rooms`.
 
 ## Running locally
 
@@ -74,6 +74,8 @@ Landlords manage their listings at `/landlord/properties`:
 - A property is an apartment, condo or house with an address, city, description and photos.
 - Each room has a monthly rent (USD), optional size, max occupants, an availability status (available, occupied or maintenance), an optional "available from" date, and photos.
 - Photos (JPEG, PNG or WebP, up to 5 MB each) are uploaded to the API, written to `UPLOAD_DIR` (default `./uploads`, relative to the repository root) and served at `GET /api/photos/:fileName`. Back this folder up, or move photos to object storage before running more than one API server.
+
+Anyone, signed in or not, can browse available rooms at `/rooms` and filter by city, property type, rent range and number of people. Each room has its own page at `/rooms/:id` with its photos and the property's. Occupied rooms and rooms under maintenance are not listed, and their pages show "not found".
 
 ## Tenants, leases and rent
 
