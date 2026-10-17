@@ -164,7 +164,10 @@ export async function leaseCreditCents(leaseId: string, db: Db = prisma): Promis
 }
 
 // Spend unallocated payment money on the lease's unpaid invoices, oldest due first.
-export async function applyCredit(leaseId: string, db: Db = prisma, on = today()) {
+// Runs under a lock on the lease row so two requests can't spend the same credit twice.
+export async function applyCredit(leaseId: string, db: Db = prisma, on = today()): Promise<void> {
+  if (db === prisma) return prisma.$transaction((tx) => applyCredit(leaseId, tx, on));
+  await db.$queryRaw`SELECT id FROM Lease WHERE id = ${leaseId} FOR UPDATE`;
   const payments = await db.payment.findMany({
     where: { leaseId, reversalOfId: null, reversedBy: null },
     orderBy: [{ paidOn: "asc" }, { createdAt: "asc" }],
