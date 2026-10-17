@@ -58,3 +58,20 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  # The deployment image still builds and the compose file is valid.
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check docker-compose.yml
+        run: docker compose --env-file .env.deploy.example config --quiet
+        env:
+          MYSQL_PASSWORD: x
+          MYSQL_ROOT_PASSWORD: x
+          SESSION_SECRET: x
+          CRON_SECRET: x
+          ADMIN_PASSWORD: x
+      - name: Build the image
+        run: docker build -t rentsystem-app .

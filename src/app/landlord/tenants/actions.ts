@@ -30,9 +30,10 @@ export async function deleteTenant(tenantId: string) {
 }
 
 // A fresh invite link for the tenant's own account. The token is shown once; only its hash is kept.
-export async function createInvite(tenantId: string): Promise<{ token?: string; error?: string }> {
+// With `email`, the API also emails the link to the address on the tenant record.
+export async function createInvite(tenantId: string, email = false): Promise<{ token?: string; error?: string }> {
   await requireRole("LANDLORD");
-  const result = await attempt(() => api.post<{ token: string }>(`/landlord/tenants/${tenantId}/invite`));
+  const result = await attempt(() => api.post<{ token: string }>(`/landlord/tenants/${tenantId}/invite`, { email }));
   if (!result.ok) return { error: result.error };
   revalidatePath(`/landlord/tenants/${tenantId}`);
   return { token: result.data.token };

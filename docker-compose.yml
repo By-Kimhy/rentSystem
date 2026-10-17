@@ -1,0 +1,90 @@
+# Production-style stack: MySQL, migrations, the API, the web app and the daily billing job.
+#   cp .env.deploy.example .env.deploy   # then fill it in
+#   docker compose --env-file .env.deploy up -d --build
+# Only the web app is published (WEB_PORT, default 3000); it forwards /api/* to the API.
+
+x-app: &app
+  build: .
+  image: rentsystem-app
+  restart: unless-stopped
+
+x-app-env: &app-env
+  DATABASE_URL: mysql://rent:${MYSQL_PASSWORD:?set MYSQL_PASSWORD}@db:3306/rentsystem
+  SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+  CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET}
+  API_URL: http://api:4000
+  API_PORT: "4000"
+  APP_URL: ${APP_URL:?set APP_URL}
+  CORS_ORIGINS: ${APP_URL}
+  BILLING_TIMEZONE: ${BILLING_TIMEZONE:-UTC}
+  SMTP_URL: ${SMTP_URL:-}
+  MAIL_FROM: ${MAIL_FROM:-RentSystem <no-reply@rentsystem.local>}
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@rentsystem.local}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD}
+
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: rentsystem
+      MYSQL_USER: rent
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # Applies any new migrations, then exits. The API waits for it.
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["npm", "run", "db:deploy"]
+    environment: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    command: ["npm", "run", "start:api"]
+    environment: *app-env
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    <<: *app
+    command: ["npm", "run", "start:web"]
+    environment: *app-env
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - api
+
+  # Brings billing up to date and sends invoice reminder emails: a minute after starting, then
+  # every 24 hours.
+  billing:
+    <<: *app
+    environment: *app-env
+    command:
+      - node
+      - -e
+      - >-
+        const run = () => fetch("http://api:4000/api/cron/billing", {method: "POST",
+        headers: {authorization: "Bearer " + process.env.CRON_SECRET}})
+        .then(async (r) => console.log(new Date().toISOString(), "billing", r.status, await r.text()))
+        .catch((e) => console.error(new Date().toISOString(), "billing failed:", e.message));
+        setTimeout(run, 60000); setInterval(run, 86400000);
+    depends_on:
+      - api
+
+volumes:
+  db-data:
+  uploads:

@@ -55,9 +55,15 @@ export async function settleApplications(db: Db, lease: Pick<Lease, "id" | "room
       status: { in: ["PENDING", "APPROVED"] },
       ...(lease.endDate ? { moveInDate: { lte: lease.endDate } } : {}),
     },
-    select: { id: true, applicantId: true, status: true },
+    select: {
+      id: true,
+      applicantId: true,
+      status: true,
+      applicant: { select: { name: true, email: true } },
+      room: { select: { name: true, property: { select: { name: true } } } },
+    },
   });
-  if (open.length === 0) return;
+  if (open.length === 0) return [];
   const onLease = await db.leaseTenant.findMany({
     where: { leaseId: lease.id, tenant: { userId: { in: open.map((a) => a.applicantId) } } },
     select: { tenant: { select: { id: true, userId: true } } },
@@ -72,11 +78,13 @@ export async function settleApplications(db: Db, lease: Pick<Lease, "id" | "room
       data: { status: "APPROVED", decidedAt, tenantId: tenantOf.get(a.applicantId) },
     });
   }
-  const declined = open.filter((a) => !tenantOf.has(a.applicantId)).map((a) => a.id);
+  const declined = open.filter((a) => !tenantOf.has(a.applicantId));
   if (declined.length > 0) {
     await db.application.updateMany({
-      where: { id: { in: declined } },
+      where: { id: { in: declined.map((a) => a.id) } },
       data: { status: "REJECTED", decidedAt, declineReason: ROOM_LET_REASON },
     });
   }
+  // Who was declined, for the caller to email once the transaction has committed.
+  return declined.map((a) => ({ applicant: a.applicant, roomLabel: `${a.room.name}, ${a.room.property.name}` }));
 }

@@ -5,6 +5,8 @@ import { paymentReportInclude, tenantPaymentReportSelect } from "../contract.js"
 import { prisma } from "../db.js";
 import { HttpError, parse } from "../errors.js";
 import { applyCredit } from "../lib/billing.js";
+import { paymentReportDecided, paymentReported } from "../lib/emails.js";
+import { notify } from "../lib/mail.js";
 import { fromCents, toCents } from "../lib/money.js";
 import { toISODate, today } from "../lib/dates.js";
 import { confirmReportSchema, paymentReportSchema, rejectReportSchema } from "../validation.js";
@@ -15,9 +17,17 @@ import { myLeases } from "./tenantHome.js";
 export const tenantPaymentReportsRouter = Router();
 
 tenantPaymentReportsRouter.post("/payment-reports", async (req, res) => {
-  const reporterId = currentUser(req).id;
+  const reporter = currentUser(req);
+  const reporterId = reporter.id;
   const data = parse(paymentReportSchema, req.body);
-  const lease = await prisma.lease.findFirst({ where: { id: data.leaseId, ...myLeases(reporterId) }, select: { id: true } });
+  const lease = await prisma.lease.findFirst({
+    where: { id: data.leaseId, ...myLeases(reporterId) },
+    select: {
+      room: {
+        select: { name: true, property: { select: { name: true, landlord: { select: { name: true, email: true } } } } },
+      },
+    },
+  });
   if (!lease) throw new HttpError(404, "Lease not found.");
   if (data.paidOn > today()) {
     throw new HttpError(400, "Some fields are invalid.", { paidOn: ["The payment date can't be in the future."] });
@@ -26,6 +36,15 @@ tenantPaymentReportsRouter.post("/payment-reports", async (req, res) => {
     data: { ...data, reporterId },
     select: tenantPaymentReportSelect,
   });
+  notify(
+    paymentReported(lease.room.property.landlord, {
+      tenantName: reporter.name,
+      roomLabel: `${lease.room.name}, ${lease.room.property.name}`,
+      amount: report.amount,
+      paidOn: report.paidOn,
+      reference: report.reference,
+    }),
+  );
   res.status(201).json({ report });
 });
 
@@ -57,7 +76,10 @@ landlordPaymentReportsRouter.get("/payment-reports", async (req, res) => {
 });
 
 async function ownedReport(id: string, landlordId: string) {
-  const report = await prisma.paymentReport.findFirst({ where: { id, ...ownedBy(landlordId) } });
+  const report = await prisma.paymentReport.findFirst({
+    where: { id, ...ownedBy(landlordId) },
+    include: { reporter: { select: { name: true, email: true } } },
+  });
   if (!report) throw new HttpError(404, "Payment report not found.");
   return report;
 }
@@ -111,6 +133,14 @@ landlordPaymentReportsRouter.post("/payment-reports/:id/confirm", async (req, re
     return created;
   });
   await applyCredit(report.leaseId);
+  notify(
+    paymentReportDecided(report.reporter, {
+      amount: report.amount,
+      paidOn: report.paidOn,
+      confirmed: true,
+      recordedAmount: payment.amount,
+    }),
+  );
   res.json({ payment });
 });
 
@@ -122,5 +152,6 @@ landlordPaymentReportsRouter.post("/payment-reports/:id/reject", async (req, res
     data: { status: "REJECTED", rejectReason: reason, decidedAt: new Date() },
   });
   if (updated.count === 0) throw decided();
+  notify(paymentReportDecided(report.reporter, { amount: report.amount, paidOn: report.paidOn, confirmed: false, reason }));
   res.status(204).end();
 });

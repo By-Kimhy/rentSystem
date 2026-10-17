@@ -112,7 +112,7 @@ export default async function TenantPage({ params }: PageProps<"/landlord/tenant
               payments online.
               {tenant.invitedAt && ` A link made on ${formatDate(tenant.invitedAt)} is waiting to be used (links last 14 days).`}
             </p>
-            <InviteLink tenantId={tenant.id} hasInvite={Boolean(tenant.invitedAt)} />
+            <InviteLink tenantId={tenant.id} hasInvite={Boolean(tenant.invitedAt)} email={tenant.email} />
             {tenant.invitedAt && (
               <ConfirmButton action={revokeInvite.bind(null, tenant.id)} message="Cancel the current invite link?">
                 Cancel current link

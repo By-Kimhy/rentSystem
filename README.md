@@ -110,10 +110,29 @@ How billing works (`server/src/lib/billing.ts`):
 - **Payments** pay the oldest unpaid invoice first unless you split them by hand. Anything left over stays as credit and pays the next invoice automatically. A reversal records a matching negative payment, so nothing is ever deleted.
 - **Overdue**: an invoice unpaid after its due date plus the lease's grace days (default 3) turns overdue, and the lease's late fee (flat amount or percent of rent) is added once.
 - **Ending a lease** frees the room, prorates the final month and voids untouched invoices after it. Then the lease page settles the deposit: record deductions with reasons and the refund until nothing is held.
-- Billing is brought up to date whenever a landlord opens a rent page. To keep statuses current overnight too, call `POST http://localhost:4000/api/cron/billing` once a day with `Authorization: Bearer $CRON_SECRET` (for example from cron or a GitHub Actions schedule).
+- Billing is brought up to date whenever a landlord opens a rent page. Also call `POST http://localhost:4000/api/cron/billing` once a day with `Authorization: Bearer $CRON_SECRET` (for example from cron or a GitHub Actions schedule). It keeps statuses current overnight and sends the invoice reminder emails (see below), which nothing else sends.
 - Set `BILLING_TIMEZONE` (for example `Asia/Phnom_Penh`) so the day rolls over at local midnight. It defaults to UTC.
 
 A whole house or condo rented to one household is set up as a property with a single room.
+
+## Emails
+
+The API emails people when something needs their attention:
+
+| When | Who |
+| ---- | --- |
+| A tenant applies for a room | The landlord |
+| An application is approved or declined, including declined automatically because the room was let | The applicant |
+| A tenant reports a payment | The landlord |
+| A reported payment is confirmed (with the amount recorded) or rejected (with the reason) | The tenant |
+| The landlord clicks "Email a link to …" on a tenant's page | That tenant, with their invite link |
+| An invoice is due within 3 days, or has become overdue (in the last 30 days) | Every tenant on the lease |
+
+The invoice emails are sent by the daily billing job (`POST /api/cron/billing`). Each is sent at most once per invoice. Tenants are emailed at their account's address if it's linked, otherwise at the address on their tenant record. Every email links back to the page where the reader can act.
+
+Mail goes through any SMTP server set in `SMTP_URL`. `MAIL_FROM` is the sender, and `APP_URL` is the web address used in links. With `SMTP_URL` unset, nothing is sent and the API logs each message's subject instead. Sending never holds up or fails the request that caused it. Under `npm test`, messages are collected in memory for the tests to check.
+
+To see the emails while developing, run [Mailpit](https://mailpit.axllent.org/) (one binary, or `docker run -p 8025:8025 -p 1025:1025 axllent/mailpit`), set `SMTP_URL="smtp://localhost:1025"`, and open http://localhost:8025. For production, use your provider's SMTP address, for example `smtps://resend:<API_KEY>@smtp.resend.com:465`.
 
 ## API
 
@@ -132,7 +151,7 @@ All endpoints are under `/api` on port 4000. Bodies are JSON (or multipart where
 | Payments | `GET /landlord/payments`, `GET /landlord/payments/options?lease=`, `POST /landlord/payments`, `GET /landlord/payments/:id`, `POST /landlord/payments/:id/reverse` |
 | Applications (tenant) | `GET, POST /tenant/applications`, `POST /tenant/applications/:id/withdraw` |
 | Tenant's own rentals | `GET /tenant/home` (leases, invoices, payments, payment reports), `GET /tenant/invoices/:id` |
-| Tenant invites | `POST, DELETE /landlord/tenants/:id/invite`, `GET /invites/:token` (public), `POST /tenant/invites/:token/accept` |
+| Tenant invites | `POST, DELETE /landlord/tenants/:id/invite` (`{ "email": true }` also emails the link), `GET /invites/:token` (public), `POST /tenant/invites/:token/accept` |
 | Payment reports | `POST /tenant/payment-reports`, `POST /tenant/payment-reports/:id/cancel`, `GET /landlord/payment-reports?show=all`, `POST /landlord/payment-reports/:id/confirm`, `.../reject` |
 | Applications (landlord) | `GET /landlord/applications?show=all`, `GET /landlord/applications/:id`, `POST /landlord/applications/:id/approve`, `.../reject` |
 | Billing job | `POST /cron/billing` with `Authorization: Bearer $CRON_SECRET` |
@@ -163,6 +182,35 @@ curl -b jar localhost:4000/api/landlord/dashboard
 
 To run the parts on different hosts, set `API_URL` for the web app (where it finds the API), and `API_PORT` and `CORS_ORIGINS` for the API. Both need the same `SESSION_SECRET`.
 
+## Deploying with Docker
+
+`docker-compose.yml` runs the whole app on one server with these services:
+
+| Service | What it does |
+| ------- | ------------ |
+| `db` | MySQL 8.4 |
+| `migrate` | Applies any new migrations, then exits; the API waits for it |
+| `api` | The Express API |
+| `web` | The Next.js site, the only service exposed (port `WEB_PORT`, default 3000) |
+| `billing` | Calls the daily billing job (including invoice reminder emails) a minute after starting and then every 24 hours |
+
+Database rows and uploaded photos live in the named volumes `db-data` and `uploads`. Every service runs from one image built from `Dockerfile`, each with its own command.
+
+```bash
+cp .env.deploy.example .env.deploy        # fill in APP_URL, passwords, secrets, email
+docker compose --env-file .env.deploy up -d --build
+docker compose --env-file .env.deploy run --rm api npm run db:seed   # once: creates the admin account
+```
+
+To update, pull the new code and run the `up -d --build` command again. New migrations apply on start.
+
+Notes:
+
+- **HTTPS is required.** With `NODE_ENV=production`, the sign-in cookie is only sent over HTTPS (browsers make an exception for `localhost`). Put a reverse proxy in front of `WEB_PORT`, for example Caddy (`rent.example.com { reverse_proxy localhost:3000 }`, which also gets the certificate) or nginx with Let's Encrypt. Set `APP_URL` to the `https://` address.
+- **The seed doesn't create demo accounts in production**, only the admin from `ADMIN_EMAIL` and `ADMIN_PASSWORD`.
+- **Back up the `db-data` and `uploads` volumes.**
+- **The image is about 3 GB uncompressed** (much less to download). It uses the full `node:22-bookworm` base because Prisma needs OpenSSL, and it keeps dev tools because the migration and seed commands use them.
+
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every pull request and every push to `main`. It starts MySQL 8.4, applies the migrations, then runs `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`. Run the same commands locally before pushing.
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`. It starts MySQL 8.4, applies the migrations, then runs `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`. A second job builds the Docker image and checks `docker-compose.yml`. Run the same commands locally before pushing.

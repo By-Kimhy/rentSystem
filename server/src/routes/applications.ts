@@ -6,6 +6,8 @@ import { applicationInclude, myApplicationInclude } from "../contract.js";
 import { prisma } from "../db.js";
 import { HttpError, parse } from "../errors.js";
 import { today, toISODate } from "../lib/dates.js";
+import { applicationDecided, applicationReceived } from "../lib/emails.js";
+import { notify } from "../lib/mail.js";
 import { applicationSchema } from "../validation.js";
 
 // ---- Tenant side, mounted at /api/tenant
@@ -22,9 +24,13 @@ tenantApplicationsRouter.get("/applications", async (req, res) => {
 });
 
 tenantApplicationsRouter.post("/applications", async (req, res) => {
-  const applicantId = currentUser(req).id;
+  const applicant = currentUser(req);
+  const applicantId = applicant.id;
   const data = parse(applicationSchema, req.body);
-  const room = await prisma.room.findUnique({ where: { id: data.roomId } });
+  const room = await prisma.room.findUnique({
+    where: { id: data.roomId },
+    include: { property: { select: { name: true, landlord: { select: { name: true, email: true } } } } },
+  });
   if (!room || room.status !== "AVAILABLE") throw new HttpError(409, "This room is no longer available.");
   if (data.moveInDate < today()) {
     throw new HttpError(400, "Some fields are invalid.", { moveInDate: ["Move-in date can't be in the past."] });
@@ -45,6 +51,16 @@ tenantApplicationsRouter.post("/applications", async (req, res) => {
     if (pending > 0) throw new HttpError(409, "You have already applied for this room.");
     return tx.application.create({ data: { ...data, applicantId }, include: myApplicationInclude });
   });
+  notify(
+    applicationReceived(room.property.landlord, {
+      id: application.id,
+      applicantName: applicant.name,
+      roomLabel: `${room.name}, ${room.property.name}`,
+      moveInDate: application.moveInDate,
+      occupants: application.occupants,
+      message: application.message,
+    }),
+  );
   res.status(201).json({ application });
 });
 
@@ -86,10 +102,13 @@ landlordApplicationsRouter.get("/applications/:id", async (req, res) => {
 async function ownedApplication(id: string, landlordId: string) {
   const application = await prisma.application.findFirst({
     where: { id, ...ownedBy(landlordId) },
-    include: { applicant: { select: { name: true, email: true } } },
+    include: {
+      applicant: { select: { name: true, email: true } },
+      room: { select: { name: true, property: { select: { name: true } } } },
+    },
   });
   if (!application) throw new HttpError(404, "Application not found.");
-  return application;
+  return { ...application, roomLabel: `${application.room.name}, ${application.room.property.name}` };
 }
 
 // Moves a pending application to its decision, or fails if someone decided it first. Run inside
@@ -129,6 +148,7 @@ landlordApplicationsRouter.post("/applications/:id/approve", async (req, res) =>
       include: applicationInclude,
     });
   });
+  notify(applicationDecided(application.applicant, application.roomLabel, true));
   res.json({ application: result });
 });
 
@@ -138,5 +158,6 @@ landlordApplicationsRouter.post("/applications/:id/reject", async (req, res) => 
     await claim(tx, application.id, "REJECTED");
     return tx.application.findUniqueOrThrow({ where: { id: application.id }, include: applicationInclude });
   });
+  notify(applicationDecided(application.applicant, application.roomLabel, false));
   res.json({ application: updated });
 });

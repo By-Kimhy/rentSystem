@@ -14,7 +14,9 @@ import {
   trimInvoicesAfterEnd,
 } from "../lib/billing.js";
 import { addDays, daysBetween, today, toISODate } from "../lib/dates.js";
-import { ownedLease, overlappingLease, settleApplications, syncRoomStatus } from "../lib/leases.js";
+import { applicationDecided } from "../lib/emails.js";
+import { ROOM_LET_REASON, ownedLease, overlappingLease, settleApplications, syncRoomStatus } from "../lib/leases.js";
+import { notify } from "../lib/mail.js";
 import { fromCents, toCents } from "../lib/money.js";
 import { chargeSchema, depositTransactionSchema, endLeaseSchema, leaseSchema } from "../validation.js";
 
@@ -25,9 +27,9 @@ const landlordOf = (req: Request) => currentUser(req).id;
 // Activate a draft: refuse if the room is already let for overlapping dates.
 // Returns an error message, or null once the lease is active.
 async function activate(leaseId: string): Promise<string | null> {
-  return prisma.$transaction(async (tx) => {
+  const outcome = await prisma.$transaction(async (tx) => {
     const lease = await tx.lease.findUniqueOrThrow({ where: { id: leaseId } });
-    if (lease.status !== "DRAFT") return "Only a draft lease can be activated.";
+    if (lease.status !== "DRAFT") return { error: "Only a draft lease can be activated.", declined: [] };
     // Lock the room row so two activations for the same room can't both pass the check.
     await tx.$queryRaw`SELECT id FROM Room WHERE id = ${lease.roomId} FOR UPDATE`;
     const clash = await overlappingLease(tx, {
@@ -38,16 +40,23 @@ async function activate(leaseId: string): Promise<string | null> {
     });
     if (clash) {
       const who = clash.tenants[0]?.tenant.fullName ?? "another tenant";
-      return `This room is already let to ${who} from ${toISODate(clash.startDate)}${
-        clash.endDate ? ` to ${toISODate(clash.endDate)}` : ""
-      }. End that lease first or change the dates.`;
+      return {
+        error: `This room is already let to ${who} from ${toISODate(clash.startDate)}${
+          clash.endDate ? ` to ${toISODate(clash.endDate)}` : ""
+        }. End that lease first or change the dates.`,
+        declined: [],
+      };
     }
     const active = await tx.lease.update({ where: { id: leaseId }, data: { status: "ACTIVE" } });
     await syncRoomStatus(tx, lease.roomId);
-    await settleApplications(tx, active);
+    const declined = await settleApplications(tx, active);
     await issueDepositInvoice(active, tx);
-    return null;
+    return { error: null, declined };
   });
+  if (outcome.error) return outcome.error;
+  // Tell the applicants who lost the room, now that the lease is saved.
+  notify(...outcome.declined.map((d) => applicationDecided(d.applicant, d.roomLabel, false, ROOM_LET_REASON)));
+  return null;
 }
 
 leasesRouter.get("/leases", async (req, res) => {

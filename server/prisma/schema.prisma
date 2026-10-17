@@ -213,6 +213,9 @@ model Invoice {
   amountPaid     Decimal             @default(0) @db.Decimal(10, 2)
   status         InvoiceStatus       @default(OPEN)
   lateFeeApplied Boolean             @default(false)
+  // When the daily job emailed the tenants about this invoice, so each email goes out once.
+  dueReminderSentAt   DateTime?
+  overdueNoticeSentAt DateTime?
   voidReason     String? @db.VarChar(255)
   lines          InvoiceLine[]
   allocations    PaymentAllocation[]
