@@ -21,10 +21,14 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
     where: { id, landlordId: landlord.id },
     include: {
       photos: { orderBy: { createdAt: "asc" } },
-      rooms: { orderBy: { name: "asc" }, include: { photos: { take: 1, orderBy: { createdAt: "asc" } } } },
+      rooms: {
+        orderBy: { name: "asc" },
+        include: { photos: { take: 1, orderBy: { createdAt: "asc" } }, _count: { select: { leases: true } } },
+      },
     },
   });
   if (!property) notFound();
+  const hasLeases = property.rooms.some((r) => r._count.leases > 0);
 
   return (
     <div className="space-y-8">
@@ -47,12 +51,14 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
             <Link href={`/landlord/properties/${property.id}/edit`} className="text-sm text-blue-600 hover:underline dark:text-blue-400">
               Edit property
             </Link>
-            <ConfirmButton
-              action={deleteProperty.bind(null, property.id)}
-              message="Delete this property and all of its rooms and photos?"
-            >
-              Delete property
-            </ConfirmButton>
+            {!hasLeases && (
+              <ConfirmButton
+                action={deleteProperty.bind(null, property.id)}
+                message="Delete this property and all of its rooms and photos?"
+              >
+                Delete property
+              </ConfirmButton>
+            )}
           </div>
         </div>
         {property.description && <p className="whitespace-pre-line text-zinc-700 dark:text-zinc-300">{property.description}</p>}
@@ -106,9 +112,17 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
                 >
                   Edit
                 </Link>
-                <ConfirmButton action={deleteRoom.bind(null, room.id)} message={`Delete room "${room.name}"?`}>
-                  Delete
-                </ConfirmButton>
+                <Link
+                  href={`/landlord/leases/new?room=${room.id}`}
+                  className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  New lease
+                </Link>
+                {room._count.leases === 0 && (
+                  <ConfirmButton action={deleteRoom.bind(null, room.id)} message={`Delete room "${room.name}"?`}>
+                    Delete
+                  </ConfirmButton>
+                )}
               </li>
             ))}
           </ul>

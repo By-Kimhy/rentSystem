@@ -16,14 +16,14 @@ export type FormState =
   | undefined;
 
 const SignupSchema = z.object({
-  name: z.string().trim().min(2, "Name must be at least 2 characters."),
-  email: z.email("Enter a valid email.").trim().toLowerCase(),
+  name: z.string().trim().min(2, "Name must be at least 2 characters.").max(120, "Name is too long."),
+  email: z.email("Enter a valid email.").max(255).trim().toLowerCase(),
   password: z.string().min(8, "Password must be at least 8 characters."),
   role: z.enum(SIGNUP_ROLES, "Choose landlord or tenant."),
 });
 
 const LoginSchema = z.object({
-  email: z.email("Enter a valid email.").trim().toLowerCase(),
+  email: z.email("Enter a valid email.").max(255).trim().toLowerCase(),
   password: z.string().min(1, "Enter your password."),
 });
 

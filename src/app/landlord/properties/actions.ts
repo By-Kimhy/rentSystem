@@ -50,6 +50,8 @@ export async function saveProperty(
 export async function deleteProperty(propertyId: string) {
   const landlord = await requireRole("LANDLORD");
   await ownedProperty(propertyId, landlord.id);
+  // Lease history keeps its rooms; the page hides the button in that case.
+  if (await prisma.lease.count({ where: { room: { propertyId } } })) throw new Error("Property has leases");
   const photos = await prisma.photo.findMany({
     where: { OR: [{ propertyId }, { room: { propertyId } }] },
     select: { fileName: true },
@@ -93,6 +95,7 @@ export async function saveRoom(
 export async function deleteRoom(roomId: string) {
   const landlord = await requireRole("LANDLORD");
   const room = await ownedRoom(roomId, landlord.id);
+  if (await prisma.lease.count({ where: { roomId } })) throw new Error("Room has leases");
   const photos = await prisma.photo.findMany({ where: { roomId }, select: { fileName: true } });
   await prisma.room.delete({ where: { id: roomId } });
   await removePhotoFiles(photos.map((p) => p.fileName));

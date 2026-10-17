@@ -27,7 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <header className="border-b border-zinc-200 dark:border-zinc-800">
+        <header className="border-b border-zinc-200 dark:border-zinc-800 print:hidden">
           <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 py-4">
             <Link href="/" className="text-lg font-semibold">
               RentSystem
