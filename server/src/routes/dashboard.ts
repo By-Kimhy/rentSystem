@@ -17,7 +17,7 @@ dashboardRouter.get("/dashboard", async (req, res) => {
   const monthEnd = addDays(periodStart(nextPeriod(periodOf(now))), -1);
   const mine = { lease: { room: { property: { landlordId } } } };
 
-  const [rooms, occupied, billed, collected, unpaid, ending] = await Promise.all([
+  const [rooms, occupied, billed, collected, unpaid, ending, pendingApplications, pendingPaymentReports] = await Promise.all([
     prisma.room.count({ where: { property: { landlordId } } }),
     prisma.room.count({ where: { property: { landlordId }, status: "OCCUPIED" } }),
     prisma.invoice.aggregate({
@@ -40,6 +40,8 @@ dashboardRouter.get("/dashboard", async (req, res) => {
       orderBy: { endDate: "asc" },
       include: dashboardEndingInclude,
     }),
+    prisma.application.count({ where: { room: { property: { landlordId } }, status: "PENDING" } }),
+    prisma.paymentReport.count({ where: { ...mine, status: "PENDING" } }),
   ]);
 
   res.json({
@@ -49,5 +51,7 @@ dashboardRouter.get("/dashboard", async (req, res) => {
     collectedCents: toCents(collected._sum.amount ?? 0),
     unpaid,
     ending,
+    pendingApplications,
+    pendingPaymentReports,
   });
 });

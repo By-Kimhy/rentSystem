@@ -20,7 +20,9 @@ The web app never touches the database. Its pages and Server Actions call the AP
 | Landlord | Sign-up form, choosing "Landlord"               | `/landlord` |
 | Tenant   | Sign-up form, choosing "Tenant"                 | `/tenant`   |
 
-Visiting another role's page sends you to your own. Signed-out visitors are sent to `/login`.
+The admin dashboard at `/admin` shows platform totals (landlords, tenants, rooms let, active leases, pending applications, and rent billed and collected this month). It lists the newest 50 accounts and properties, with a search box for the rest, and can disable or re-enable any account except an admin's. A disabled account is signed out at once (its existing sessions stop working) and can't sign in, and a disabled landlord's rooms leave the public listings. Its data stays as it is.
+
+Visiting another role's page sends you to your own. Signed-out visitors are sent to `/login`, except on the public room listings at `/rooms`.
 
 ## Running locally
 
@@ -75,6 +77,20 @@ Landlords manage their listings at `/landlord/properties`:
 - Each room has a monthly rent (USD), optional size, max occupants, an availability status (available, occupied or maintenance), an optional "available from" date, and photos.
 - Photos (JPEG, PNG or WebP, up to 5 MB each) are uploaded to the API, written to `UPLOAD_DIR` (default `./uploads`, relative to the repository root) and served at `GET /api/photos/:fileName`. Back this folder up, or move photos to object storage before running more than one API server.
 
+Anyone, signed in or not, can browse available rooms at `/rooms` and filter by city, property type, rent range and number of people. Each room has its own page at `/rooms/:id` with its photos and the property's. Occupied rooms and rooms under maintenance are not listed, and their pages show "not found".
+
+## Rental applications
+
+A signed-in tenant can apply for a listed room from its page, giving a phone number, a move-in date (not in the past, and not before the room's "available from" date), how many people (no more than the room fits) and an optional message. Signed-out visitors are offered sign-in or sign-up, and come back to the room afterwards. A tenant can have one pending application per room, and sees all of theirs, with their status, on `/tenant`, where a pending one can be withdrawn.
+
+The landlord reviews them under `/landlord/applications`. Declining closes the application. Approving adds the applicant to the landlord's tenants, linked to their account (an applicant approved before reuses the same tenant record), and opens the new-lease form already filled in with the room, the tenant and the move-in date. Nothing is signed until the landlord saves that lease.
+
+When a lease on a room is activated, the room's open applications from anyone whose stay would overlap it (moving in before the lease ends) close on their own. A pending one from someone on the lease is approved. The rest are declined with the reason "This room has been let to another tenant", which the applicant sees; this includes earlier approvals for people the landlord didn't put on the lease. Applications to move in after a fixed-term lease ends are left as they are.
+
+Once the lease is saved, the tenant's dashboard at `/tenant` shows their rental (room, address, rent, due day, lease dates, deposit held, late-fee terms and the landlord's contact), their balance due and next due date, any credit, every invoice (each with a printable page at `/tenant/invoices/:id`) and every payment the landlord has recorded. Draft leases stay hidden until they are activated, and tenants never see the landlord's notes, other tenants' contact or ID details, or voided invoices. A tenant record is linked to the tenant's account in one of two ways: when the landlord approves their application, or through an invite link. For a tenant added by hand, the landlord clicks **Create invite link** on the tenant's page and sends the link however they like. The tenant opens `/invite/<token>`, signs in or creates a tenant account, and accepts. A link works once and lasts 14 days. Making a new one replaces the old, and the landlord can cancel it. Only a SHA-256 hash of the link's secret is stored. Each account can be linked to only one tenant record per landlord.
+
+From the same page a tenant can report a payment they made (amount, method, date, optional reference and note). The landlord sees reports under "Reported by tenants" on `/landlord/payments`, with a reminder on the dashboard. **Confirm** records the payment, paid by that tenant, and applies it to the oldest unpaid invoices like any other payment. The amount and date start as reported, and the landlord can change them to what actually arrived. The payment's note then keeps what was reported, and the tenant sees what was recorded. **Reject** asks for a reason, which the tenant sees. A tenant can cancel a report while it is still waiting.
+
 ## Tenants, leases and rent
 
 Everything a landlord needs to collect rent, under `/landlord`:
@@ -107,13 +123,18 @@ All endpoints are under `/api` on port 4000. Bodies are JSON (or multipart where
 | ---- | --------- |
 | Accounts | `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` |
 | Public | `GET /rooms?city=&type=&minRent=&maxRent=&occupants=` (available rooms), `GET /rooms/:id`, `GET /photos/:fileName`, `GET /health` |
-| Admin | `GET /admin/users` |
+| Admin | `GET /admin/overview`, `GET /admin/users?q=`, `GET /admin/properties?q=` (newest 50 of each, with `total`), `POST /admin/users/:id/disable`, `.../enable` |
 | Landlord dashboard | `GET /landlord/dashboard` |
 | Properties and rooms | `GET, POST /landlord/properties`, `GET, PUT, DELETE /landlord/properties/:id`, `POST /landlord/properties/:id/rooms`, `GET, PUT, DELETE /landlord/rooms/:id`, `DELETE /landlord/photos/:id` |
 | Tenants | `GET /landlord/tenants?q=`, `POST /landlord/tenants`, `GET, PUT, DELETE /landlord/tenants/:id` |
 | Leases | `GET /landlord/leases?show=ACTIVE\|DRAFT\|ending\|past`, `GET /landlord/leases/options`, `POST /landlord/leases`, `GET, PUT, DELETE /landlord/leases/:id`, `POST /landlord/leases/:id/activate`, `.../end`, `.../renew`, `.../charges`, `.../deposit-transactions` |
 | Invoices | `GET /landlord/invoices?show=overdue\|paid\|void\|all`, `GET /landlord/invoices/:id`, `POST /landlord/invoices/:id/lines`, `POST /landlord/invoices/:id/void` |
 | Payments | `GET /landlord/payments`, `GET /landlord/payments/options?lease=`, `POST /landlord/payments`, `GET /landlord/payments/:id`, `POST /landlord/payments/:id/reverse` |
+| Applications (tenant) | `GET, POST /tenant/applications`, `POST /tenant/applications/:id/withdraw` |
+| Tenant's own rentals | `GET /tenant/home` (leases, invoices, payments, payment reports), `GET /tenant/invoices/:id` |
+| Tenant invites | `POST, DELETE /landlord/tenants/:id/invite`, `GET /invites/:token` (public), `POST /tenant/invites/:token/accept` |
+| Payment reports | `POST /tenant/payment-reports`, `POST /tenant/payment-reports/:id/cancel`, `GET /landlord/payment-reports?show=all`, `POST /landlord/payment-reports/:id/confirm`, `.../reject` |
+| Applications (landlord) | `GET /landlord/applications?show=all`, `GET /landlord/applications/:id`, `POST /landlord/applications/:id/approve`, `.../reject` |
 | Billing job | `POST /cron/billing` with `Authorization: Bearer $CRON_SECRET` |
 
 Saving a lease with `"intent": "activate"` activates it straight away; if the room is already let for those dates the draft is still saved and the response carries `activationError`. A payment may include `"allocations": { "<invoiceId>": "100.00" }` to split it by hand.
@@ -141,3 +162,7 @@ curl -b jar localhost:4000/api/landlord/dashboard
 | `npm run db:seed`   | Create admin and demo accounts                       |
 
 To run the parts on different hosts, set `API_URL` for the web app (where it finds the API), and `API_PORT` and `CORS_ORIGINS` for the API. Both need the same `SESSION_SECRET`.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`. It starts MySQL 8.4, applies the migrations, then runs `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`. Run the same commands locally before pushing.

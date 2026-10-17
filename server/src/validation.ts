@@ -163,3 +163,34 @@ export const roomSearchSchema = z.object({
   maxRent: z.string().trim().transform((v) => (v === "" ? null : Number(v))).refine((v) => v === null || (Number.isFinite(v) && v >= 0), "Must be a number."),
   occupants: z.string().trim().transform((v) => (v === "" ? null : Number(v))).refine((v) => v === null || (Number.isInteger(v) && v >= 1), "Must be a whole number."),
 });
+
+export const applicationSchema = z.object({
+  roomId: z.string().trim().min(1, "Choose a room."),
+  phone: z.string().trim().min(1, "Phone is required.").max(40),
+  moveInDate: requiredDate("Choose a move-in date."),
+  occupants: z.coerce.number({ message: "Must be a whole number." }).int("Must be a whole number.").min(1, "At least 1 person.").max(50),
+  message: optionalText,
+});
+
+export const paymentReportSchema = z.object({
+  leaseId: z.string().min(1, "Choose a lease."),
+  amount: positiveMoney,
+  method: z.enum(["CASH", "BANK", "CARD", "WALLET"], { message: "Choose how you paid." }),
+  paidOn: requiredDate("Choose the date you paid."),
+  reference: optionalLine,
+  note: optionalText,
+});
+
+// What the landlord actually received, when it differs from the report. Blank keeps the reported value.
+export const confirmReportSchema = z.object({
+  amount: z
+    .string()
+    .trim()
+    .transform((v) => (v === "" ? null : Number(v)))
+    .refine((v) => v === null || (Number.isFinite(v) && v > 0 && v <= 99_999_999), "Must be more than 0."),
+  paidOn: optionalDate,
+});
+
+export const rejectReportSchema = z.object({
+  reason: z.string().trim().min(1, "Say why, so the tenant can follow up.").max(255),
+});

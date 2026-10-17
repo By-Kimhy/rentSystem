@@ -9,11 +9,11 @@ export default function Home() {
         RentSystem connects landlords with tenants for rooms in apartments, condos and houses.
       </p>
       <div className="flex gap-3">
-        <Link href="/signup" className={buttonClass}>
-          Get started
+        <Link href="/rooms" className={buttonClass}>
+          Browse rooms
         </Link>
-        <Link href="/login" className="rounded-md border border-zinc-300 px-4 py-2 font-medium dark:border-zinc-700">
-          Sign in
+        <Link href="/signup" className="rounded-md border border-zinc-300 px-4 py-2 font-medium dark:border-zinc-700">
+          Get started
         </Link>
       </div>
     </div>

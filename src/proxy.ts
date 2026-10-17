@@ -8,7 +8,16 @@ const PROTECTED = ["/dashboard", "/admin", "/landlord", "/tenant"];
 const AUTH_PAGES = ["/login", "/signup"];
 
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = request.nextUrl;
+
+  // The API turned this session down (see SESSION_ENDED in lib/api.ts): drop the cookie and show
+  // the sign-in page instead of sending the visitor back to a dashboard that will refuse them.
+  if (pathname === "/login" && searchParams.has("expired")) {
+    const response = NextResponse.next();
+    response.cookies.delete(SESSION_COOKIE);
+    return response;
+  }
+
   const session = await decrypt(request.cookies.get(SESSION_COOKIE)?.value);
 
   const isProtected = PROTECTED.some((p) => pathname === p || pathname.startsWith(`${p}/`));

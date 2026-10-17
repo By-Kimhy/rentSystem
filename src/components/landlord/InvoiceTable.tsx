@@ -23,7 +23,16 @@ export function invoiceLabel(i: Pick<InvoiceRow, "kind" | "period">) {
   return i.kind === "DEPOSIT" ? "Security deposit" : "Other charges";
 }
 
-export function InvoiceTable({ invoices, showTenant = false }: { invoices: InvoiceRow[]; showTenant?: boolean }) {
+export function InvoiceTable({
+  invoices,
+  showTenant = false,
+  basePath = "/landlord/invoices",
+}: {
+  invoices: InvoiceRow[];
+  showTenant?: boolean;
+  // Where each invoice number links: the landlord's invoice pages, or the tenant's.
+  basePath?: string;
+}) {
   if (invoices.length === 0) return <EmptyState>No invoices yet.</EmptyState>;
   return (
     <div className={`${cardClass} overflow-x-auto`}>
@@ -44,7 +53,7 @@ export function InvoiceTable({ invoices, showTenant = false }: { invoices: Invoi
             return (
               <tr key={i.id}>
                 <td className={tdClass}>
-                  <Link href={`/landlord/invoices/${i.id}`} className="font-medium hover:underline">
+                  <Link href={`${basePath}/${i.id}`} className="font-medium hover:underline">
                     {invoiceNumber(i.number)}
                   </Link>
                   <div className="text-zinc-500">{invoiceLabel(i)}</div>

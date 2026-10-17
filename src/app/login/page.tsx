@@ -15,6 +15,13 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
 }
 
 async function LoginFormWithNext({ searchParams }: Pick<PageProps<"/login">, "searchParams">) {
-  const { next } = await searchParams;
-  return <LoginForm next={typeof next === "string" ? next : undefined} />;
+  const { next, expired } = await searchParams;
+  return (
+    <>
+      {expired !== undefined && (
+        <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">Your session has ended. Please sign in again.</p>
+      )}
+      <LoginForm next={typeof next === "string" ? next : undefined} />
+    </>
+  );
 }

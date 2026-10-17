@@ -14,7 +14,7 @@ Next.js web app in `src/` (port 3000) and an Express API in `server/` (port 4000
 
 ## Cloud Agent
 
-Node.js 22 and Docker are installed; the database is MySQL 8.4. Start it with `dockerd &` and then the `docker run` command in `README.md` ("Running locally"), which creates the `rent` user and `rentsystem` database. If the environment start script still launches PostgreSQL, it is no longer used. Then copy `.env.example` to `.env` if it is missing, apply migrations with `npm run db:deploy`, seed demo accounts with `npm run db:seed`, and run `npm run dev` (API on 4000, web app on 3000). `npm test` runs the API tests against that database.
+Node.js 22 is installed; the database is MySQL 8. The SessionStart hook `.claude/hooks/session-start.sh` gets each cloud session ready: it installs MySQL from apt if needed (Docker Hub pulls are rate-limited here) and starts it, creates the `rent` user and `rentsystem` database, copies `.env.example` to `.env` with a random `SESSION_SECRET` if `.env` is missing, runs `npm install`, applies migrations with `npm run db:deploy` and seeds demo accounts with `npm run db:seed`. If the environment start script still launches PostgreSQL, it is no longer used. If MySQL has stopped (for example after the container restarts), run `service mysql start` or the hook again. Run `npm run dev` yourself when you need the app (API on 4000, web app on 3000). `npm test` runs the API tests against that database.
 
 `npm run db:migrate` (`prisma migrate dev`) is interactive. Use `npm run db:deploy` to apply existing migrations in this environment.
 

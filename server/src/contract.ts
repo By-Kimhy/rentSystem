@@ -36,7 +36,9 @@ export const userListSelect = {
   name: true,
   email: true,
   role: true,
+  disabledAt: true,
   createdAt: true,
+  _count: { select: { properties: true } },
 } satisfies Prisma.UserSelect;
 export type UserListItem = Wire<Prisma.UserGetPayload<{ select: typeof userListSelect }>>;
 
@@ -219,15 +221,166 @@ export type Dashboard = {
   collectedCents: number;
   unpaid: Wire<Prisma.InvoiceGetPayload<{ include: typeof dashboardUnpaidInclude }>>[];
   ending: Wire<Prisma.LeaseGetPayload<{ include: typeof dashboardEndingInclude }>>[];
+  // Waiting for the landlord: tenants' applications and reported payments.
+  pendingApplications: number;
+  pendingPaymentReports: number;
 };
+
+// ---- Admin
+
+export type AdminOverview = {
+  users: { landlords: number; tenants: number; disabled: number };
+  properties: number;
+  rooms: { total: number; occupied: number; available: number };
+  activeLeases: number;
+  pendingApplications: number;
+  // This calendar month, across every landlord.
+  billedCents: number;
+  collectedCents: number;
+};
+
+export const adminPropertySelect = {
+  id: true,
+  name: true,
+  type: true,
+  city: true,
+  createdAt: true,
+  landlord: { select: { name: true, email: true, disabledAt: true } },
+  rooms: { select: { status: true } },
+} satisfies Prisma.PropertySelect;
+export type AdminProperty = Wire<Prisma.PropertyGetPayload<{ select: typeof adminPropertySelect }>>;
 
 // ---- Errors
 
 /** Every non-2xx response has this body. */
 export type ApiErrorBody = { error: string; fieldErrors?: Record<string, string[] | undefined> };
 
+// ---- Rental applications
+
+// What the applicant sees: never the landlord's account, only the room they applied for.
+export const myApplicationInclude = {
+  room: {
+    select: { id: true, name: true, rentPrice: true, status: true, property: { select: { name: true, city: true } } },
+  },
+} satisfies Prisma.ApplicationInclude;
+export type MyApplication = Wire<Prisma.ApplicationGetPayload<{ include: typeof myApplicationInclude }>>;
+
+export const applicationInclude = {
+  applicant: { select: { name: true, email: true } },
+  room: {
+    select: {
+      id: true,
+      name: true,
+      rentPrice: true,
+      maxOccupants: true,
+      status: true,
+      property: { select: { id: true, name: true } },
+    },
+  },
+  tenant: { select: { id: true, fullName: true } },
+} satisfies Prisma.ApplicationInclude;
+export type Application = Wire<Prisma.ApplicationGetPayload<{ include: typeof applicationInclude }>>;
+
+// ---- Tenant's own view
+//
+// A tenant account sees the leases its tenant records are on (linked when an application is
+// approved), but never the landlord's notes, other tenants' contact or ID details, or who
+// recorded a payment.
+
+export const tenantLeaseSelect = {
+  id: true,
+  roomId: true,
+  status: true,
+  startDate: true,
+  endDate: true,
+  terminatedOn: true,
+  rentAmount: true,
+  dueDay: true,
+  depositAmount: true,
+  graceDays: true,
+  lateFeeType: true,
+  lateFeeValue: true,
+  room: {
+    select: {
+      name: true,
+      property: { select: { name: true, address: true, city: true, landlord: { select: { name: true, email: true } } } },
+    },
+  },
+  tenants: { orderBy: { isPrimary: "desc" }, select: { isPrimary: true, tenant: { select: { fullName: true } } } },
+} satisfies Prisma.LeaseSelect;
+export type TenantLease = Wire<Prisma.LeaseGetPayload<{ select: typeof tenantLeaseSelect }>>;
+
+export const tenantPaymentSelect = {
+  id: true,
+  leaseId: true,
+  amount: true,
+  method: true,
+  paidOn: true,
+  reference: true,
+  reversalOfId: true,
+  payer: payerName,
+} satisfies Prisma.PaymentSelect;
+export type TenantPayment = Wire<Prisma.PaymentGetPayload<{ select: typeof tenantPaymentSelect }>>;
+
+export const tenantPaymentReportSelect = {
+  id: true,
+  leaseId: true,
+  amount: true,
+  method: true,
+  paidOn: true,
+  reference: true,
+  note: true,
+  status: true,
+  rejectReason: true,
+  decidedAt: true,
+  createdAt: true,
+  // What the landlord recorded on confirming, which can differ from the report.
+  payment: { select: { amount: true, paidOn: true } },
+} satisfies Prisma.PaymentReportSelect;
+export type TenantPaymentReport = Wire<Prisma.PaymentReportGetPayload<{ select: typeof tenantPaymentReportSelect }>>;
+
+export type TenantHome = {
+  leases: (TenantLease & { creditCents: number; depositHeldCents: number })[];
+  // Every invoice on those leases except void ones, newest due first.
+  invoices: Invoice[];
+  payments: TenantPayment[];
+  // Payments the tenant reported, newest first.
+  paymentReports: TenantPaymentReport[];
+};
+
+// ---- Payment reports, landlord side
+
+export const paymentReportInclude = {
+  reporter: { select: { name: true, email: true } },
+  lease: { select: { id: true, room: roomLabel } },
+} satisfies Prisma.PaymentReportInclude;
+export type PaymentReportItem = Wire<Prisma.PaymentReportGetPayload<{ include: typeof paymentReportInclude }>>;
+
+export const tenantInvoiceInclude = {
+  lines: { orderBy: { createdAt: "asc" } },
+  allocations: {
+    orderBy: { createdAt: "asc" },
+    select: { id: true, amount: true, paymentId: true, payment: { select: { paidOn: true, reversalOfId: true } } },
+  },
+  lease: {
+    select: {
+      id: true,
+      room: {
+        select: {
+          name: true,
+          property: { select: { name: true, address: true, city: true, landlord: { select: { name: true, email: true } } } },
+        },
+      },
+      tenants: { where: { isPrimary: true }, select: { tenant: { select: { fullName: true } } } },
+    },
+  },
+} satisfies Prisma.InvoiceInclude;
+export type TenantInvoice = Wire<Prisma.InvoiceGetPayload<{ include: typeof tenantInvoiceInclude }>>;
+
 // Enum string unions, for the web app.
 export type {
+  ApplicationStatus,
+  PaymentReportStatus,
   DepositTransactionKind,
   InvoiceKind,
   InvoiceStatus,

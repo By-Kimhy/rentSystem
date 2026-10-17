@@ -8,6 +8,11 @@ import { SESSION_COOKIE } from "./jwt";
 
 const API_URL = process.env.API_URL ?? "http://localhost:4000";
 
+// Where to go when the cookie is there but the API no longer accepts it (expired, account
+// disabled or deleted). The proxy clears the cookie on this URL, or it would bounce the visitor
+// straight back to their dashboard.
+export const SESSION_ENDED = "/login?expired=1";
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -57,7 +62,7 @@ export async function apiGet<T>(path: string, query?: Record<string, string | un
   try {
     return await call<T>("GET", `${path}${qs}`);
   } catch (e) {
-    if (e instanceof ApiError && e.status === 401) redirect("/login");
+    if (e instanceof ApiError && e.status === 401) redirect(SESSION_ENDED);
     if (e instanceof ApiError && e.status === 404) notFound();
     throw e;
   }
@@ -84,7 +89,7 @@ export async function attempt<T>(
     if (e instanceof ApiError && (e.status === 400 || e.status === 409)) {
       return { ok: false, error: e.message, fieldErrors: e.fieldErrors };
     }
-    if (e instanceof ApiError && e.status === 401) redirect("/login");
+    if (e instanceof ApiError && e.status === 401) redirect(SESSION_ENDED);
     throw e;
   }
 }

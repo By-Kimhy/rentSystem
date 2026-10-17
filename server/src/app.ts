@@ -6,13 +6,17 @@ import { loadUser, requireRole } from "./auth.js";
 import { config } from "./config.js";
 import { errorHandler, notFound } from "./errors.js";
 import { adminRouter, cronRouter } from "./routes/admin.js";
+import { landlordApplicationsRouter, tenantApplicationsRouter } from "./routes/applications.js";
 import { authRouter } from "./routes/auth.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { invoicesRouter } from "./routes/invoices.js";
 import { leasesRouter } from "./routes/leases.js";
+import { landlordInvitesRouter, publicInvitesRouter, tenantInvitesRouter } from "./routes/invites.js";
+import { landlordPaymentReportsRouter, tenantPaymentReportsRouter } from "./routes/paymentReports.js";
 import { paymentsRouter } from "./routes/payments.js";
 import { propertiesRouter } from "./routes/properties.js";
 import { publicRouter } from "./routes/public.js";
+import { tenantHomeRouter } from "./routes/tenantHome.js";
 import { tenantsRouter } from "./routes/tenants.js";
 
 export function createApp() {
@@ -34,10 +38,25 @@ export function createApp() {
 
   const landlord = express.Router();
   landlord.use(requireRole("LANDLORD"));
-  landlord.use(dashboardRouter, propertiesRouter, tenantsRouter, leasesRouter, invoicesRouter, paymentsRouter);
+  landlord.use(
+    dashboardRouter,
+    propertiesRouter,
+    tenantsRouter,
+    leasesRouter,
+    invoicesRouter,
+    paymentsRouter,
+    landlordApplicationsRouter,
+    landlordPaymentReportsRouter,
+    landlordInvitesRouter,
+  );
   app.use("/api/landlord", landlord);
 
-  app.use("/api", publicRouter);
+  const tenant = express.Router();
+  tenant.use(requireRole("TENANT"));
+  tenant.use(tenantHomeRouter, tenantApplicationsRouter, tenantPaymentReportsRouter, tenantInvitesRouter);
+  app.use("/api/tenant", tenant);
+
+  app.use("/api", publicInvitesRouter, publicRouter);
 
   app.use(notFound);
   app.use(errorHandler);

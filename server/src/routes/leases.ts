@@ -14,7 +14,7 @@ import {
   trimInvoicesAfterEnd,
 } from "../lib/billing.js";
 import { addDays, daysBetween, today, toISODate } from "../lib/dates.js";
-import { ownedLease, overlappingLease, syncRoomStatus } from "../lib/leases.js";
+import { ownedLease, overlappingLease, settleApplications, syncRoomStatus } from "../lib/leases.js";
 import { fromCents, toCents } from "../lib/money.js";
 import { chargeSchema, depositTransactionSchema, endLeaseSchema, leaseSchema } from "../validation.js";
 
@@ -44,6 +44,7 @@ async function activate(leaseId: string): Promise<string | null> {
     }
     const active = await tx.lease.update({ where: { id: leaseId }, data: { status: "ACTIVE" } });
     await syncRoomStatus(tx, lease.roomId);
+    await settleApplications(tx, active);
     await issueDepositInvoice(active, tx);
     return null;
   });

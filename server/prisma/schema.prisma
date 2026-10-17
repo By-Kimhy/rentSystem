@@ -19,12 +19,18 @@ model User {
   name         String @db.VarChar(120)
   passwordHash String
   role         Role     @default(TENANT)
+  // Set by an admin. A disabled account can't sign in, and its sessions stop working.
+  disabledAt   DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  properties Property[]
-  tenants    Tenant[]
-  payments   Payment[]
+  properties     Property[]
+  tenants        Tenant[]        @relation("LandlordTenants")
+  // Landlords' tenant records for this account, linked when one of its applications is approved.
+  tenantOf       Tenant[]        @relation("TenantAccount")
+  payments       Payment[]
+  applications   Application[]
+  paymentReports PaymentReport[]
 }
 
 enum PropertyType {
@@ -69,6 +75,7 @@ model Room {
   availableFrom DateTime?  @db.Date
   photos        Photo[]
   leases        Lease[]
+  applications  Application[]
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -94,7 +101,13 @@ model Photo {
 model Tenant {
   id               String        @id @default(cuid())
   landlordId       String
-  landlord         User          @relation(fields: [landlordId], references: [id], onDelete: Cascade)
+  landlord         User          @relation("LandlordTenants", fields: [landlordId], references: [id], onDelete: Cascade)
+  // The tenant's own account, linked by an approved application or an accepted invite.
+  userId           String?
+  user             User?         @relation("TenantAccount", fields: [userId], references: [id], onDelete: SetNull)
+  // SHA-256 of the secret in the landlord's invite link; the link itself is never stored.
+  inviteTokenHash  String?       @unique @db.Char(64)
+  invitedAt        DateTime?
   fullName         String @db.VarChar(120)
   phone            String @db.VarChar(40)
   email            String? @db.VarChar(255)
@@ -104,10 +117,12 @@ model Tenant {
   notes            String? @db.Text
   leases           LeaseTenant[]
   payments         Payment[]
+  applications     Application[]
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
   @@index([landlordId])
+  @@index([userId])
 }
 
 enum LeaseStatus {
@@ -148,6 +163,7 @@ model Lease {
   tenants       LeaseTenant[]
   invoices      Invoice[]
   payments      Payment[]
+  paymentReports PaymentReport[]
   deposits      DepositTransaction[]
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
@@ -253,6 +269,8 @@ model Payment {
   reversalOfId  String?             @unique
   reversalOf    Payment?            @relation("PaymentReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
   reversedBy    Payment?            @relation("PaymentReversal")
+  // The tenant's report this payment confirmed, if it came from one.
+  report        PaymentReport?
   allocations   PaymentAllocation[]
   createdAt     DateTime            @default(now())
 
@@ -290,4 +308,68 @@ model DepositTransaction {
   createdAt DateTime               @default(now())
 
   @@index([leaseId])
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+// A tenant account asking to rent a listed room. Approving it links (or creates) the
+// landlord's tenant record for the applicant; the landlord then writes the lease.
+model Application {
+  id            String            @id @default(cuid())
+  roomId        String
+  room          Room              @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  applicantId   String
+  applicant     User              @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  phone         String            @db.VarChar(40)
+  moveInDate    DateTime          @db.Date
+  occupants     Int
+  message       String?           @db.Text
+  status        ApplicationStatus @default(PENDING)
+  decidedAt     DateTime?
+  // Shown to the applicant when it was declined automatically, e.g. the room was let.
+  declineReason String?           @db.VarChar(255)
+  // Set on approval.
+  tenantId      String?
+  tenant        Tenant?           @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([roomId, status])
+  @@index([applicantId])
+}
+
+enum PaymentReportStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
+}
+
+// A tenant telling their landlord they paid. Confirming it records the Payment.
+model PaymentReport {
+  id           String              @id @default(cuid())
+  leaseId      String
+  lease        Lease               @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  reporterId   String
+  reporter     User                @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  amount       Decimal             @db.Decimal(10, 2)
+  method       PaymentMethod
+  paidOn       DateTime            @db.Date
+  reference    String?             @db.VarChar(255)
+  note         String?             @db.Text
+  status       PaymentReportStatus @default(PENDING)
+  rejectReason String?             @db.VarChar(255)
+  decidedAt    DateTime?
+  paymentId    String?             @unique
+  payment      Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([leaseId, status])
+  @@index([reporterId])
 }

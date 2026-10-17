@@ -36,6 +36,7 @@ authRouter.post("/login", async (req, res) => {
   const user = await prisma.user.findUnique({ where: { email } });
   const ok = user && (await bcrypt.compare(password, user.passwordHash));
   if (!user || !ok) throw new HttpError(401, "Incorrect email or password.");
+  if (user.disabledAt) throw new HttpError(403, "This account has been disabled. Contact the site's admin.");
   const token = await signSession({ userId: user.id, role: user.role });
   setSessionCookie(res, token);
   res.json({ user: publicUser(user), token });

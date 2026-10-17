@@ -5,12 +5,13 @@ import { useActionState } from "react";
 import { signup } from "@/app/actions/auth";
 import { Field, buttonClass } from "@/components/field";
 
-export function SignupForm() {
+export function SignupForm({ next }: { next?: string }) {
   const [state, action, pending] = useActionState(signup, undefined);
   const role = state?.values?.role ?? "TENANT";
 
   return (
     <form action={action} className="flex flex-col gap-4">
+      <input type="hidden" name="next" value={next ?? ""} />
       <Field label="Full name" name="name" autoComplete="name" defaultValue={state?.values?.name} errors={state?.errors?.name} />
       <Field label="Email" name="email" type="email" autoComplete="email" defaultValue={state?.values?.email} errors={state?.errors?.email} />
       <Field label="Password" name="password" type="password" autoComplete="new-password" errors={state?.errors?.password} />
@@ -35,7 +36,7 @@ export function SignupForm() {
       </button>
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium underline">
+        <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"} className="font-medium underline">
           Sign in
         </Link>
       </p>

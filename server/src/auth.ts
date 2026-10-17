@@ -63,15 +63,18 @@ function tokenFrom(req: Request) {
   return req.cookies?.[SESSION_COOKIE] as string | undefined;
 }
 
-/** Loads the signed-in user, if any, onto req.user. The user is re-read from the database every request. */
+/**
+ * Loads the signed-in user, if any, onto req.user. The user is re-read from the database every
+ * request, so a disabled account counts as signed out straight away.
+ */
 export async function loadUser(req: Request, _res: Response, next: NextFunction) {
   const session = await verifySession(tokenFrom(req));
   if (session) {
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { id: true, name: true, email: true, role: true },
+      select: { id: true, name: true, email: true, role: true, disabledAt: true },
     });
-    if (user) req.user = user;
+    if (user && !user.disabledAt) req.user = { id: user.id, name: user.name, email: user.email, role: user.role };
   }
   next();
 }

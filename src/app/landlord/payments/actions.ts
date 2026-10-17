@@ -51,3 +51,23 @@ export async function addDepositTransaction(leaseId: string, _prev: ActionResult
   revalidateRent();
   return {};
 }
+
+// A tenant's reported payment: confirming records it as a payment; rejecting needs a reason.
+export async function confirmPaymentReport(reportId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  await requireRole("LANDLORD");
+  const body = { amount: String(formData.get("amount") ?? ""), paidOn: String(formData.get("paidOn") ?? "") };
+  const result = await attempt(() => api.post(`/landlord/payment-reports/${reportId}/confirm`, body));
+  if (!result.ok) return { error: result.fieldErrors?.amount?.[0] ?? result.fieldErrors?.paidOn?.[0] ?? result.error };
+  revalidateRent();
+  return {};
+}
+
+export async function rejectPaymentReport(reportId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  await requireRole("LANDLORD");
+  const result = await attempt(() =>
+    api.post(`/landlord/payment-reports/${reportId}/reject`, { reason: String(formData.get("reason") ?? "") }),
+  );
+  if (!result.ok) return { error: result.fieldErrors?.reason?.[0] ?? result.error };
+  revalidateRent();
+  return {};
+}

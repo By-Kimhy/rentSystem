@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Lease, Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import { HttpError } from "../errors.js";
 
@@ -39,5 +39,44 @@ export async function syncRoomStatus(db: Db, roomId: string) {
     await db.room.update({ where: { id: roomId }, data: { status: "OCCUPIED" } });
   } else if (active === 0 && room.status === "OCCUPIED") {
     await db.room.update({ where: { id: roomId }, data: { status: "AVAILABLE" } });
+  }
+}
+
+export const ROOM_LET_REASON = "This room has been let to another tenant.";
+
+// Once a lease is active, close the room's open applications from anyone whose stay would
+// overlap it (moving in before it ends): approve pending ones from people on the lease, and
+// decline the rest, including earlier approvals for people the landlord didn't put on it.
+// Applications to move in after a fixed-term lease ends stay as they are.
+export async function settleApplications(db: Db, lease: Pick<Lease, "id" | "roomId" | "endDate">) {
+  const open = await db.application.findMany({
+    where: {
+      roomId: lease.roomId,
+      status: { in: ["PENDING", "APPROVED"] },
+      ...(lease.endDate ? { moveInDate: { lte: lease.endDate } } : {}),
+    },
+    select: { id: true, applicantId: true, status: true },
+  });
+  if (open.length === 0) return;
+  const onLease = await db.leaseTenant.findMany({
+    where: { leaseId: lease.id, tenant: { userId: { in: open.map((a) => a.applicantId) } } },
+    select: { tenant: { select: { id: true, userId: true } } },
+  });
+  const tenantOf = new Map(onLease.map((lt) => [lt.tenant.userId, lt.tenant.id]));
+  const decidedAt = new Date();
+
+  // People on the lease: pending applications become approved (already-approved ones stay).
+  for (const a of open.filter((a) => a.status === "PENDING" && tenantOf.has(a.applicantId))) {
+    await db.application.update({
+      where: { id: a.id },
+      data: { status: "APPROVED", decidedAt, tenantId: tenantOf.get(a.applicantId) },
+    });
+  }
+  const declined = open.filter((a) => !tenantOf.has(a.applicantId)).map((a) => a.id);
+  if (declined.length > 0) {
+    await db.application.updateMany({
+      where: { id: { in: declined } },
+      data: { status: "REJECTED", decidedAt, declineReason: ROOM_LET_REASON },
+    });
   }
 }

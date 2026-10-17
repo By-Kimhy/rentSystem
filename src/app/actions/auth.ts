@@ -14,10 +14,11 @@ export type FormState =
     }
   | undefined;
 
-// Only allow same-site relative paths, so `?next=` can't redirect off-site.
+// Only allow same-site relative paths, so `?next=` can't redirect off-site. Browsers read both
+// "//host" and "/\host" as another site, so a second slash or a backslash is refused.
 function safeNext(value: FormDataEntryValue | null) {
   const next = typeof value === "string" ? value : "";
-  return next.startsWith("/") && !next.startsWith("//") ? next : null;
+  return next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : null;
 }
 
 const field = (formData: FormData, key: string) => String(formData.get(key) ?? "");
@@ -34,7 +35,7 @@ export async function signup(_state: FormState, formData: FormData): Promise<For
   if (!result.ok) return { errors: result.fieldErrors, message: result.fieldErrors ? undefined : result.error, values };
 
   await createSession(result.data.token);
-  redirect(ROLE_HOME[result.data.user.role]);
+  redirect(safeNext(formData.get("next")) ?? ROLE_HOME[result.data.user.role]);
 }
 
 export async function login(_state: FormState, formData: FormData): Promise<FormState> {
@@ -46,7 +47,7 @@ export async function login(_state: FormState, formData: FormData): Promise<Form
   } catch (e) {
     // A wrong password is a 401 here, not a lost session, so attempt() doesn't fit.
     if (e instanceof ApiError && e.status === 400) return { errors: e.fieldErrors, values };
-    if (e instanceof ApiError && e.status === 401) return { message: e.message, values };
+    if (e instanceof ApiError && (e.status === 401 || e.status === 403)) return { message: e.message, values };
     throw e;
   }
 

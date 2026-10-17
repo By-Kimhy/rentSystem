@@ -4,7 +4,7 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { CurrentUser, Role } from "@api/contract";
-import { ApiError, api } from "./api";
+import { ApiError, SESSION_ENDED, api } from "./api";
 import { ROLE_HOME } from "./roles";
 
 export type { CurrentUser };
@@ -21,7 +21,7 @@ export const getOptionalUser = cache(async (): Promise<CurrentUser | null> => {
 
 export async function getCurrentUser(): Promise<CurrentUser> {
   const user = await getOptionalUser();
-  if (!user) redirect("/login");
+  if (!user) redirect(SESSION_ENDED);
   return user;
 }
 

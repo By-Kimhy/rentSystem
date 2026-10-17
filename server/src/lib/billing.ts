@@ -211,13 +211,13 @@ async function syncLease(lease: Lease, on: Date) {
 // Bring a landlord's invoices up to date: issue new rent invoices, apply credit,
 // mark late ones overdue and add late fees. Called by the rent endpoints and the cron endpoint.
 export async function syncBilling(landlordId?: string) {
+  await syncLeases(landlordId ? { room: { property: { landlordId } } } : {});
+}
+
+// The same for any set of leases, e.g. the ones a tenant's account is on.
+export async function syncLeases(where: Prisma.LeaseWhereInput) {
   const on = today();
-  const leases = await prisma.lease.findMany({
-    where: {
-      status: { not: "DRAFT" },
-      ...(landlordId ? { room: { property: { landlordId } } } : {}),
-    },
-  });
+  const leases = await prisma.lease.findMany({ where: { ...where, status: { not: "DRAFT" } } });
   for (const lease of leases) await syncLease(lease, on);
 }
 
