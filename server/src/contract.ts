@@ -252,6 +252,75 @@ export const applicationInclude = {
 } satisfies Prisma.ApplicationInclude;
 export type Application = Wire<Prisma.ApplicationGetPayload<{ include: typeof applicationInclude }>>;
 
+// ---- Tenant's own view
+//
+// A tenant account sees the leases its tenant records are on (linked when an application is
+// approved), but never the landlord's notes, other tenants' contact or ID details, or who
+// recorded a payment.
+
+export const tenantLeaseSelect = {
+  id: true,
+  roomId: true,
+  status: true,
+  startDate: true,
+  endDate: true,
+  terminatedOn: true,
+  rentAmount: true,
+  dueDay: true,
+  depositAmount: true,
+  graceDays: true,
+  lateFeeType: true,
+  lateFeeValue: true,
+  room: {
+    select: {
+      name: true,
+      property: { select: { name: true, address: true, city: true, landlord: { select: { name: true, email: true } } } },
+    },
+  },
+  tenants: { orderBy: { isPrimary: "desc" }, select: { isPrimary: true, tenant: { select: { fullName: true } } } },
+} satisfies Prisma.LeaseSelect;
+export type TenantLease = Wire<Prisma.LeaseGetPayload<{ select: typeof tenantLeaseSelect }>>;
+
+export const tenantPaymentSelect = {
+  id: true,
+  leaseId: true,
+  amount: true,
+  method: true,
+  paidOn: true,
+  reference: true,
+  reversalOfId: true,
+  payer: payerName,
+} satisfies Prisma.PaymentSelect;
+export type TenantPayment = Wire<Prisma.PaymentGetPayload<{ select: typeof tenantPaymentSelect }>>;
+
+export type TenantHome = {
+  leases: (TenantLease & { creditCents: number; depositHeldCents: number })[];
+  // Every invoice on those leases except void ones, newest due first.
+  invoices: Invoice[];
+  payments: TenantPayment[];
+};
+
+export const tenantInvoiceInclude = {
+  lines: { orderBy: { createdAt: "asc" } },
+  allocations: {
+    orderBy: { createdAt: "asc" },
+    select: { id: true, amount: true, paymentId: true, payment: { select: { paidOn: true, reversalOfId: true } } },
+  },
+  lease: {
+    select: {
+      id: true,
+      room: {
+        select: {
+          name: true,
+          property: { select: { name: true, address: true, city: true, landlord: { select: { name: true, email: true } } } },
+        },
+      },
+      tenants: { where: { isPrimary: true }, select: { tenant: { select: { fullName: true } } } },
+    },
+  },
+} satisfies Prisma.InvoiceInclude;
+export type TenantInvoice = Wire<Prisma.InvoiceGetPayload<{ include: typeof tenantInvoiceInclude }>>;
+
 // Enum string unions, for the web app.
 export type {
   ApplicationStatus,

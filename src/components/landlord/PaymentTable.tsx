@@ -14,7 +14,16 @@ export type PaymentRow = {
   roomLabel?: string;
 };
 
-export function PaymentTable({ payments, showRoom = false }: { payments: PaymentRow[]; showRoom?: boolean }) {
+export function PaymentTable({
+  payments,
+  showRoom = false,
+  linked = true,
+}: {
+  payments: PaymentRow[];
+  showRoom?: boolean;
+  // Receipt numbers link to the landlord's payment pages; tenants have none.
+  linked?: boolean;
+}) {
   if (payments.length === 0) return <EmptyState>No payments recorded yet.</EmptyState>;
   return (
     <div className={`${cardClass} overflow-x-auto`}>
@@ -33,9 +42,13 @@ export function PaymentTable({ payments, showRoom = false }: { payments: Payment
             <tr key={p.id} className={p.reversalOfId ? "text-zinc-500" : undefined}>
               <td className={tdClass}>{formatDate(p.paidOn)}</td>
               <td className={tdClass}>
-                <Link href={`/landlord/payments/${p.id}`} className="font-medium hover:underline">
-                  {receiptNumber(p.id)}
-                </Link>
+                {linked ? (
+                  <Link href={`/landlord/payments/${p.id}`} className="font-medium hover:underline">
+                    {receiptNumber(p.id)}
+                  </Link>
+                ) : (
+                  <span className="font-medium">{receiptNumber(p.id)}</span>
+                )}
                 {p.reversalOfId && <div>Reversal</div>}
               </td>
               <td className={tdClass}>

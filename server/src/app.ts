@@ -14,6 +14,7 @@ import { leasesRouter } from "./routes/leases.js";
 import { paymentsRouter } from "./routes/payments.js";
 import { propertiesRouter } from "./routes/properties.js";
 import { publicRouter } from "./routes/public.js";
+import { tenantHomeRouter } from "./routes/tenantHome.js";
 import { tenantsRouter } from "./routes/tenants.js";
 
 export function createApp() {
@@ -48,7 +49,7 @@ export function createApp() {
 
   const tenant = express.Router();
   tenant.use(requireRole("TENANT"));
-  tenant.use(tenantApplicationsRouter);
+  tenant.use(tenantHomeRouter, tenantApplicationsRouter);
   app.use("/api/tenant", tenant);
 
   app.use("/api", publicRouter);

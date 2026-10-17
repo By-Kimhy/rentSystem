@@ -83,6 +83,8 @@ A signed-in tenant can apply for a listed room from its page, giving a phone num
 
 The landlord reviews them under `/landlord/applications`. Declining closes the application. Approving adds the applicant to the landlord's tenants, linked to their account (an applicant approved before reuses the same tenant record), and opens the new-lease form already filled in with the room, the tenant and the move-in date. Nothing is signed until the landlord saves that lease.
 
+Once the lease is saved, the tenant's dashboard at `/tenant` shows their rental (room, address, rent, due day, lease dates, deposit held, late-fee terms and the landlord's contact), their balance due and next due date, any credit, every invoice (each with a printable page at `/tenant/invoices/:id`) and every payment the landlord has recorded. Draft leases stay hidden until they are activated, and tenants never see the landlord's notes, other tenants' contact or ID details, or voided invoices. Only tenant records linked through an approved application show up this way; tenants a landlord adds by hand have no account link.
+
 ## Tenants, leases and rent
 
 Everything a landlord needs to collect rent, under `/landlord`:
@@ -123,6 +125,7 @@ All endpoints are under `/api` on port 4000. Bodies are JSON (or multipart where
 | Invoices | `GET /landlord/invoices?show=overdue\|paid\|void\|all`, `GET /landlord/invoices/:id`, `POST /landlord/invoices/:id/lines`, `POST /landlord/invoices/:id/void` |
 | Payments | `GET /landlord/payments`, `GET /landlord/payments/options?lease=`, `POST /landlord/payments`, `GET /landlord/payments/:id`, `POST /landlord/payments/:id/reverse` |
 | Applications (tenant) | `GET, POST /tenant/applications`, `POST /tenant/applications/:id/withdraw` |
+| Tenant's own rentals | `GET /tenant/home` (leases, invoices, payments), `GET /tenant/invoices/:id` |
 | Applications (landlord) | `GET /landlord/applications?show=all`, `GET /landlord/applications/:id`, `POST /landlord/applications/:id/approve`, `.../reject` |
 | Billing job | `POST /cron/billing` with `Authorization: Bearer $CRON_SECRET` |
 
