@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Listing } from "@api/contract";
+import { today } from "@/lib/dates";
 import { PROPERTY_TYPE_LABELS, formatDate, formatRent } from "@/lib/format";
 import { photoUrl } from "@/lib/photos";
 
@@ -10,7 +11,7 @@ export function listingPhotos(room: Listing) {
 
 // availableFrom is a date with no time, stored as midnight UTC.
 export function availability(availableFrom: Date | null) {
-  if (!availableFrom || formatDate(availableFrom) <= formatDate(new Date())) return "Available now";
+  if (!availableFrom || availableFrom <= today()) return "Available now";
   return `Available from ${formatDate(availableFrom)}`;
 }
 

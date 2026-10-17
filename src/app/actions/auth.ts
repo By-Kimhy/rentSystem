@@ -34,7 +34,7 @@ export async function signup(_state: FormState, formData: FormData): Promise<For
   if (!result.ok) return { errors: result.fieldErrors, message: result.fieldErrors ? undefined : result.error, values };
 
   await createSession(result.data.token);
-  redirect(ROLE_HOME[result.data.user.role]);
+  redirect(safeNext(formData.get("next")) ?? ROLE_HOME[result.data.user.role]);
 }
 
 export async function login(_state: FormState, formData: FormData): Promise<FormState> {

@@ -6,6 +6,7 @@ import { loadUser, requireRole } from "./auth.js";
 import { config } from "./config.js";
 import { errorHandler, notFound } from "./errors.js";
 import { adminRouter, cronRouter } from "./routes/admin.js";
+import { landlordApplicationsRouter, tenantApplicationsRouter } from "./routes/applications.js";
 import { authRouter } from "./routes/auth.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { invoicesRouter } from "./routes/invoices.js";
@@ -34,8 +35,21 @@ export function createApp() {
 
   const landlord = express.Router();
   landlord.use(requireRole("LANDLORD"));
-  landlord.use(dashboardRouter, propertiesRouter, tenantsRouter, leasesRouter, invoicesRouter, paymentsRouter);
+  landlord.use(
+    dashboardRouter,
+    propertiesRouter,
+    tenantsRouter,
+    leasesRouter,
+    invoicesRouter,
+    paymentsRouter,
+    landlordApplicationsRouter,
+  );
   app.use("/api/landlord", landlord);
+
+  const tenant = express.Router();
+  tenant.use(requireRole("TENANT"));
+  tenant.use(tenantApplicationsRouter);
+  app.use("/api/tenant", tenant);
 
   app.use("/api", publicRouter);
 

@@ -77,6 +77,12 @@ Landlords manage their listings at `/landlord/properties`:
 
 Anyone, signed in or not, can browse available rooms at `/rooms` and filter by city, property type, rent range and number of people. Each room has its own page at `/rooms/:id` with its photos and the property's. Occupied rooms and rooms under maintenance are not listed, and their pages show "not found".
 
+## Rental applications
+
+A signed-in tenant can apply for a listed room from its page, giving a phone number, a move-in date (not in the past, and not before the room's "available from" date), how many people (no more than the room fits) and an optional message. Signed-out visitors are offered sign-in or sign-up, and come back to the room afterwards. A tenant can have one pending application per room, and sees all of theirs, with their status, on `/tenant`, where a pending one can be withdrawn.
+
+The landlord reviews them under `/landlord/applications`. Declining closes the application. Approving adds the applicant to the landlord's tenants, linked to their account (an applicant approved before reuses the same tenant record), and opens the new-lease form already filled in with the room, the tenant and the move-in date. Nothing is signed until the landlord saves that lease.
+
 ## Tenants, leases and rent
 
 Everything a landlord needs to collect rent, under `/landlord`:
@@ -116,6 +122,8 @@ All endpoints are under `/api` on port 4000. Bodies are JSON (or multipart where
 | Leases | `GET /landlord/leases?show=ACTIVE\|DRAFT\|ending\|past`, `GET /landlord/leases/options`, `POST /landlord/leases`, `GET, PUT, DELETE /landlord/leases/:id`, `POST /landlord/leases/:id/activate`, `.../end`, `.../renew`, `.../charges`, `.../deposit-transactions` |
 | Invoices | `GET /landlord/invoices?show=overdue\|paid\|void\|all`, `GET /landlord/invoices/:id`, `POST /landlord/invoices/:id/lines`, `POST /landlord/invoices/:id/void` |
 | Payments | `GET /landlord/payments`, `GET /landlord/payments/options?lease=`, `POST /landlord/payments`, `GET /landlord/payments/:id`, `POST /landlord/payments/:id/reverse` |
+| Applications (tenant) | `GET, POST /tenant/applications`, `POST /tenant/applications/:id/withdraw` |
+| Applications (landlord) | `GET /landlord/applications?show=all`, `GET /landlord/applications/:id`, `POST /landlord/applications/:id/approve`, `.../reject` |
 | Billing job | `POST /cron/billing` with `Authorization: Bearer $CRON_SECRET` |
 
 Saving a lease with `"intent": "activate"` activates it straight away; if the room is already let for those dates the draft is still saved and the response carries `activationError`. A payment may include `"allocations": { "<invoiceId>": "100.00" }` to split it by hand.

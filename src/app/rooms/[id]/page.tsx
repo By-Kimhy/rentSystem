@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
-import type { Listing } from "@api/contract";
+import Link from "next/link";
+import type { Listing, MyApplication } from "@api/contract";
 import { apiGet } from "@/lib/api";
-import { PROPERTY_TYPE_LABELS, formatRent } from "@/lib/format";
+import { getOptionalUser } from "@/lib/dal";
+import { maxDate, today, toISODate } from "@/lib/dates";
+import { APPLICATION_STATUS_LABELS, APPLICATION_STATUS_STYLES, PROPERTY_TYPE_LABELS, formatDate, formatRent } from "@/lib/format";
 import { photoUrl } from "@/lib/photos";
-import { BackLink, Details } from "@/components/landlord/ui";
+import { BackLink, Badge, Details, cardClass, linkClass, primaryButtonClass, secondaryButtonClass } from "@/components/landlord/ui";
+import { ApplyForm } from "@/components/rooms/ApplyForm";
 import { availability, listingPhotos, occupantsLabel } from "@/components/rooms/listing";
 
 export async function generateMetadata({ params }: PageProps<"/rooms/[id]">): Promise<Metadata> {
@@ -83,6 +87,63 @@ export default async function RoomPage({ params }: PageProps<"/rooms/[id]">) {
           <p className="whitespace-pre-line text-zinc-700 dark:text-zinc-300">{property.description}</p>
         </section>
       )}
+
+      <ApplySection room={room} />
     </div>
+  );
+}
+
+// Signed-out visitors are asked to sign in, tenants get the form (or their pending
+// application), and landlords and admins see nothing.
+async function ApplySection({ room }: { room: Listing }) {
+  const user = await getOptionalUser();
+  if (user && user.role !== "TENANT") return null;
+  const here = `/rooms/${room.id}`;
+
+  let body: React.ReactNode;
+  if (!user) {
+    body = (
+      <>
+        <p className="text-zinc-600 dark:text-zinc-400">Sign in with a tenant account to apply for this room.</p>
+        <div className="flex flex-wrap gap-3">
+          <Link href={`/login?next=${encodeURIComponent(here)}`} className={primaryButtonClass}>
+            Sign in to apply
+          </Link>
+          <Link href={`/signup?next=${encodeURIComponent(here)}`} className={secondaryButtonClass}>
+            Create an account
+          </Link>
+        </div>
+      </>
+    );
+  } else {
+    const { applications } = await apiGet<{ applications: MyApplication[] }>("/tenant/applications");
+    const pending = applications.find((a) => a.room.id === room.id && a.status === "PENDING");
+    body = pending ? (
+      <>
+        <p className="flex flex-wrap items-center gap-2">
+          You applied on {formatDate(pending.createdAt)}
+          <Badge className={APPLICATION_STATUS_STYLES[pending.status]}>{APPLICATION_STATUS_LABELS[pending.status]}</Badge>
+        </p>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          The landlord will review it.{" "}
+          <Link href="/tenant" className={linkClass}>
+            See your applications
+          </Link>
+        </p>
+      </>
+    ) : (
+      <ApplyForm
+        roomId={room.id}
+        maxOccupants={room.maxOccupants}
+        earliestMoveIn={toISODate(room.availableFrom ? maxDate(room.availableFrom, today()) : today())}
+      />
+    );
+  }
+
+  return (
+    <section id="apply" className={`${cardClass} space-y-4 p-6`}>
+      <h2 className="text-xl font-semibold">Apply for this room</h2>
+      {body}
+    </section>
   );
 }

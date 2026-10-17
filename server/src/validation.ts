@@ -163,3 +163,11 @@ export const roomSearchSchema = z.object({
   maxRent: z.string().trim().transform((v) => (v === "" ? null : Number(v))).refine((v) => v === null || (Number.isFinite(v) && v >= 0), "Must be a number."),
   occupants: z.string().trim().transform((v) => (v === "" ? null : Number(v))).refine((v) => v === null || (Number.isInteger(v) && v >= 1), "Must be a whole number."),
 });
+
+export const applicationSchema = z.object({
+  roomId: z.string().trim().min(1, "Choose a room."),
+  phone: z.string().trim().min(1, "Phone is required.").max(40),
+  moveInDate: requiredDate("Choose a move-in date."),
+  occupants: z.coerce.number({ message: "Must be a whole number." }).int("Must be a whole number.").min(1, "At least 1 person.").max(50),
+  message: optionalText,
+});

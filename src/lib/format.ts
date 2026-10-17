@@ -1,4 +1,4 @@
-import type { InvoiceStatus, LateFeeType, LeaseStatus, PaymentMethod, PropertyType, RoomStatus } from "@api/contract";
+import type { ApplicationStatus, InvoiceStatus, LateFeeType, LeaseStatus, PaymentMethod, PropertyType, RoomStatus } from "@api/contract";
 
 export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
   APARTMENT: "Apartment",
@@ -102,3 +102,17 @@ export function invoiceNumber(n: number) {
 export function receiptNumber(n: string) {
   return `RCPT-${n.slice(-8).toUpperCase()}`;
 }
+
+export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
+  PENDING: "Pending",
+  APPROVED: "Approved",
+  REJECTED: "Declined",
+  WITHDRAWN: "Withdrawn",
+};
+
+export const APPLICATION_STATUS_STYLES: Record<ApplicationStatus, string> = {
+  PENDING: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  APPROVED: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  REJECTED: "bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200",
+  WITHDRAWN: "bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200",
+};

@@ -226,8 +226,35 @@ export type Dashboard = {
 /** Every non-2xx response has this body. */
 export type ApiErrorBody = { error: string; fieldErrors?: Record<string, string[] | undefined> };
 
+// ---- Rental applications
+
+// What the applicant sees: never the landlord's account, only the room they applied for.
+export const myApplicationInclude = {
+  room: {
+    select: { id: true, name: true, rentPrice: true, status: true, property: { select: { name: true, city: true } } },
+  },
+} satisfies Prisma.ApplicationInclude;
+export type MyApplication = Wire<Prisma.ApplicationGetPayload<{ include: typeof myApplicationInclude }>>;
+
+export const applicationInclude = {
+  applicant: { select: { name: true, email: true } },
+  room: {
+    select: {
+      id: true,
+      name: true,
+      rentPrice: true,
+      maxOccupants: true,
+      status: true,
+      property: { select: { id: true, name: true } },
+    },
+  },
+  tenant: { select: { id: true, fullName: true } },
+} satisfies Prisma.ApplicationInclude;
+export type Application = Wire<Prisma.ApplicationGetPayload<{ include: typeof applicationInclude }>>;
+
 // Enum string unions, for the web app.
 export type {
+  ApplicationStatus,
   DepositTransactionKind,
   InvoiceKind,
   InvoiceStatus,

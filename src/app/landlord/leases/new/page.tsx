@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { leaseFormOptions } from "../form-data";
 import { requireRole } from "@/lib/dal";
-import { today, toISODate } from "@/lib/dates";
+import { parseDate, today, toISODate } from "@/lib/dates";
 import { LeaseForm } from "@/components/landlord/LeaseForm";
 import { BackLink, EmptyState, linkClass } from "@/components/landlord/ui";
 
@@ -9,7 +9,9 @@ export const metadata = { title: "New lease · RentSystem" };
 
 export default async function NewLeasePage({ searchParams }: PageProps<"/landlord/leases/new">) {
   await requireRole("LANDLORD");
-  const { tenant, room } = await searchParams;
+  const { tenant, room, start } = await searchParams;
+  // ?start= comes from an approved application's move-in date.
+  const startDate = typeof start === "string" && !Number.isNaN(parseDate(start).getTime()) ? start : toISODate(today());
   const { properties, tenants } = await leaseFormOptions();
 
   return (
@@ -38,7 +40,7 @@ export default async function NewLeasePage({ searchParams }: PageProps<"/landlor
             roomId: typeof room === "string" ? room : "",
             primaryTenantId: typeof tenant === "string" ? tenant : "",
             otherTenantIds: "",
-            startDate: toISODate(today()),
+            startDate,
             endDate: "",
             rentAmount: "",
             dueDay: "1",
