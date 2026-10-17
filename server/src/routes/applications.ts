@@ -1,10 +1,11 @@
 // Rental applications: tenants apply for listed rooms, landlords approve or reject them.
+import type { Prisma } from "@prisma/client";
 import { Router } from "express";
 import { currentUser } from "../auth.js";
 import { applicationInclude, myApplicationInclude } from "../contract.js";
 import { prisma } from "../db.js";
 import { HttpError, parse } from "../errors.js";
-import { today } from "../lib/dates.js";
+import { today, toISODate } from "../lib/dates.js";
 import { applicationSchema } from "../validation.js";
 
 // ---- Tenant side, mounted at /api/tenant
@@ -28,16 +29,21 @@ tenantApplicationsRouter.post("/applications", async (req, res) => {
   if (data.moveInDate < today()) {
     throw new HttpError(400, "Some fields are invalid.", { moveInDate: ["Move-in date can't be in the past."] });
   }
+  if (room.availableFrom && data.moveInDate < room.availableFrom) {
+    throw new HttpError(400, "Some fields are invalid.", {
+      moveInDate: [`The room is available from ${toISODate(room.availableFrom)}.`],
+    });
+  }
   if (data.occupants > room.maxOccupants) {
     const fits = room.maxOccupants === 1 ? "1 person" : `up to ${room.maxOccupants} people`;
     throw new HttpError(400, "Some fields are invalid.", { occupants: [`This room fits ${fits}.`] });
   }
-  const pending = await prisma.application.count({ where: { roomId: room.id, applicantId, status: "PENDING" } });
-  if (pending > 0) throw new HttpError(409, "You have already applied for this room.");
-
-  const application = await prisma.application.create({
-    data: { ...data, applicantId },
-    include: myApplicationInclude,
+  const application = await prisma.$transaction(async (tx) => {
+    // Lock the room row so a double submit can't create two pending applications.
+    await tx.$queryRaw`SELECT id FROM Room WHERE id = ${room.id} FOR UPDATE`;
+    const pending = await tx.application.count({ where: { roomId: room.id, applicantId, status: "PENDING" } });
+    if (pending > 0) throw new HttpError(409, "You have already applied for this room.");
+    return tx.application.create({ data: { ...data, applicantId }, include: myApplicationInclude });
   });
   res.status(201).json({ application });
 });
@@ -77,22 +83,34 @@ landlordApplicationsRouter.get("/applications/:id", async (req, res) => {
   res.json({ application });
 });
 
-async function pendingApplication(id: string, landlordId: string) {
+async function ownedApplication(id: string, landlordId: string) {
   const application = await prisma.application.findFirst({
     where: { id, ...ownedBy(landlordId) },
     include: { applicant: { select: { name: true, email: true } } },
   });
   if (!application) throw new HttpError(404, "Application not found.");
-  if (application.status !== "PENDING") throw new HttpError(409, "This application has already been decided.");
   return application;
+}
+
+// Moves a pending application to its decision, or fails if someone decided it first. Run inside
+// the transaction so two decisions on the same application can't both go through.
+async function claim(tx: Prisma.TransactionClient, id: string, status: "APPROVED" | "REJECTED") {
+  const claimed = await tx.application.updateMany({
+    where: { id, status: "PENDING" },
+    data: { status, decidedAt: new Date() },
+  });
+  if (claimed.count === 0) throw new HttpError(409, "This application has already been decided.");
 }
 
 // Approving links the applicant to one of the landlord's tenant records, creating it the first
 // time, so a returning tenant isn't added twice. The lease is written next, on the lease form.
 landlordApplicationsRouter.post("/applications/:id/approve", async (req, res) => {
   const landlordId = currentUser(req).id;
-  const application = await pendingApplication(req.params.id, landlordId);
+  const application = await ownedApplication(req.params.id, landlordId);
   const result = await prisma.$transaction(async (tx) => {
+    await claim(tx, application.id, "APPROVED");
+    // Lock the applicant's account row so two approvals for them can't both create a tenant record.
+    await tx.$queryRaw`SELECT id FROM User WHERE id = ${application.applicantId} FOR UPDATE`;
     const existing = await tx.tenant.findFirst({ where: { landlordId, userId: application.applicantId } });
     const tenant =
       existing ??
@@ -107,7 +125,7 @@ landlordApplicationsRouter.post("/applications/:id/approve", async (req, res) =>
       }));
     return tx.application.update({
       where: { id: application.id },
-      data: { status: "APPROVED", decidedAt: new Date(), tenantId: tenant.id },
+      data: { tenantId: tenant.id },
       include: applicationInclude,
     });
   });
@@ -115,11 +133,10 @@ landlordApplicationsRouter.post("/applications/:id/approve", async (req, res) =>
 });
 
 landlordApplicationsRouter.post("/applications/:id/reject", async (req, res) => {
-  const application = await pendingApplication(req.params.id, currentUser(req).id);
-  const updated = await prisma.application.update({
-    where: { id: application.id },
-    data: { status: "REJECTED", decidedAt: new Date() },
-    include: applicationInclude,
+  const application = await ownedApplication(req.params.id, currentUser(req).id);
+  const updated = await prisma.$transaction(async (tx) => {
+    await claim(tx, application.id, "REJECTED");
+    return tx.application.findUniqueOrThrow({ where: { id: application.id }, include: applicationInclude });
   });
   res.json({ application: updated });
 });

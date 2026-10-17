@@ -14,10 +14,11 @@ export type FormState =
     }
   | undefined;
 
-// Only allow same-site relative paths, so `?next=` can't redirect off-site.
+// Only allow same-site relative paths, so `?next=` can't redirect off-site. Browsers read both
+// "//host" and "/\host" as another site, so a second slash or a backslash is refused.
 function safeNext(value: FormDataEntryValue | null) {
   const next = typeof value === "string" ? value : "";
-  return next.startsWith("/") && !next.startsWith("//") ? next : null;
+  return next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : null;
 }
 
 const field = (formData: FormData, key: string) => String(formData.get(key) ?? "");

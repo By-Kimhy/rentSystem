@@ -40,7 +40,12 @@ tenantHomeRouter.get("/home", async (req, res) => {
       select: tenantPaymentReportSelect,
       orderBy: { createdAt: "desc" },
     }),
-    Promise.all(leaseIds.map(async (id) => ({ credit: await leaseCreditCents(id), deposit: await depositSummary(id) }))),
+    Promise.all(
+      leaseIds.map(async (id) => {
+        const [credit, deposit] = await Promise.all([leaseCreditCents(id), depositSummary(id)]);
+        return { credit, deposit };
+      }),
+    ),
   ]);
   res.json({
     leases: leases.map((l, i) => ({ ...l, creditCents: money[i].credit, depositHeldCents: money[i].deposit.heldCents })),

@@ -126,6 +126,8 @@ describe("rental applications", () => {
     const winner = await apply(nextWeek());
     const other = await apply(nextWeek());
     const later = await apply(isoDate(addDays(today(), 400)));
+    const leftOff = await apply(nextWeek());
+    await landlord.agent.post(`/api/landlord/applications/${leftOff.id}/approve`).expect(200);
 
     // The winner's first application is approved, which links their account to a tenant record.
     // A second application from them is still pending when the landlord activates a one-year lease.
@@ -159,10 +161,58 @@ describe("rental applications", () => {
       status: "REJECTED",
       declineReason: "This room has been let to another tenant.",
     });
+    // Approved earlier but not put on the lease: declined too.
+    expect(await status(leftOff, leftOff.id)).toMatchObject({
+      status: "REJECTED",
+      declineReason: "This room has been let to another tenant.",
+    });
     // Moving in after the lease ends: still open.
     expect(await status(later, later.id)).toMatchObject({ status: "PENDING" });
     const pending = await landlord.agent.get("/api/landlord/applications").expect(200);
     expect(pending.body.applications.map((a: { id: string }) => a.id)).toEqual([later.id]);
+  });
+
+  it("holds up when the same decision or application arrives twice at once", async () => {
+    const { landlord, roomId } = await listedRoom();
+    const tenant = await signUp("TENANT");
+    const body = { roomId, phone: "012 000 000", moveInDate: nextWeek(), occupants: 1 };
+
+    // Double submit: one application, one "already applied".
+    const sent = await Promise.all([
+      tenant.agent.post("/api/tenant/applications").send(body),
+      tenant.agent.post("/api/tenant/applications").send(body),
+    ]);
+    expect(sent.map((r) => r.status).sort()).toEqual([201, 409]);
+    const id = sent.find((r) => r.status === 201)!.body.application.id as string;
+
+    // Approve twice, and approve against decline: exactly one wins, one tenant record.
+    const approvals = await Promise.all([
+      landlord.agent.post(`/api/landlord/applications/${id}/approve`),
+      landlord.agent.post(`/api/landlord/applications/${id}/approve`),
+      landlord.agent.post(`/api/landlord/applications/${id}/reject`),
+    ]);
+    expect(approvals.map((r) => r.status).sort()).toEqual([200, 409, 409]);
+    const tenants = await landlord.agent.get("/api/landlord/tenants").expect(200);
+    expect(tenants.body.tenants.filter((t: { email: string }) => t.email === tenant.email)).toHaveLength(1);
+  });
+
+  it("enforces the room's available-from date", async () => {
+    const { landlord, roomId } = await listedRoom();
+    const from = isoDate(addDays(today(), 30));
+    await landlord.agent
+      .put(`/api/landlord/rooms/${roomId}`)
+      .send({ name: "Room 1", rentPrice: 200, maxOccupants: 2, status: "AVAILABLE", availableFrom: from })
+      .expect(200);
+    const tenant = await signUp("TENANT");
+    const early = await tenant.agent
+      .post("/api/tenant/applications")
+      .send({ roomId, phone: "012 000 000", moveInDate: nextWeek(), occupants: 1 })
+      .expect(400);
+    expect(early.body.fieldErrors.moveInDate).toEqual([`The room is available from ${from}.`]);
+    await tenant.agent
+      .post("/api/tenant/applications")
+      .send({ roomId, phone: "012 000 000", moveInDate: from, occupants: 1 })
+      .expect(201);
   });
 
   it("refuses applications for rooms that are not available", async () => {

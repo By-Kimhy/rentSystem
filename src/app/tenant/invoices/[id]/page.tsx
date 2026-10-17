@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { TenantInvoice } from "@api/contract";
 import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
@@ -6,16 +7,19 @@ import { InvoiceDocument } from "@/components/InvoiceDocument";
 import { PrintButton } from "@/components/PrintButton";
 import { BackLink, cardClass, secondaryButtonClass } from "@/components/landlord/ui";
 
+// Shared by generateMetadata and the page, so the invoice is fetched once per request.
+const getInvoice = cache((id: string) => apiGet<{ invoice: TenantInvoice }>(`/tenant/invoices/${id}`));
+
 export async function generateMetadata({ params }: PageProps<"/tenant/invoices/[id]">) {
   const { id } = await params;
-  const { invoice } = await apiGet<{ invoice: TenantInvoice }>(`/tenant/invoices/${id}`);
+  const { invoice } = await getInvoice(id);
   return { title: `${invoiceNumber(invoice.number)} · RentSystem` };
 }
 
 export default async function TenantInvoicePage({ params }: PageProps<"/tenant/invoices/[id]">) {
   const { id } = await params;
   await requireRole("TENANT");
-  const { invoice } = await apiGet<{ invoice: TenantInvoice }>(`/tenant/invoices/${id}`);
+  const { invoice } = await getInvoice(id);
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-8 px-6 py-10">

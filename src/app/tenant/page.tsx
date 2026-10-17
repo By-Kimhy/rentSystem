@@ -214,11 +214,16 @@ function RentalCard({ lease }: { lease: HomeLease }) {
   );
 }
 
-function Balance({ home }: { home: TenantHome }) {
+// The tenant's unpaid invoices, oldest due first, and what is left to pay on them.
+function unpaidOf(home: TenantHome) {
   const unpaid = home.invoices
     .filter((i) => ["OPEN", "PARTIAL", "OVERDUE"].includes(i.status))
     .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
-  const owedCents = unpaid.reduce((s, i) => s + toCents(i.total) - toCents(i.amountPaid), 0);
+  return { unpaid, owedCents: unpaid.reduce((s, i) => s + toCents(i.total) - toCents(i.amountPaid), 0) };
+}
+
+function Balance({ home }: { home: TenantHome }) {
+  const { unpaid, owedCents } = unpaidOf(home);
   const overdue = unpaid.some((i) => i.status === "OVERDUE");
   const next = unpaid[0];
   const creditCents = home.leases.reduce((s, l) => s + l.creditCents, 0);
@@ -256,9 +261,7 @@ function Balance({ home }: { home: TenantHome }) {
 
 // Telling the landlord about a payment, and what happened to earlier reports.
 function ReportPayment({ home }: { home: TenantHome }) {
-  const owedCents = home.invoices
-    .filter((i) => ["OPEN", "PARTIAL", "OVERDUE"].includes(i.status))
-    .reduce((s, i) => s + toCents(i.total) - toCents(i.amountPaid), 0);
+  const { owedCents } = unpaidOf(home);
   const leases = [...home.leases]
     .sort((a, b) => Number(b.status === "ACTIVE") - Number(a.status === "ACTIVE"))
     .map((l) => ({ id: l.id, label: `${l.room.name}, ${l.room.property.name} (${LEASE_STATUS_LABELS[l.status]})` }));

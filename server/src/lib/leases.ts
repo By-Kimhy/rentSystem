@@ -44,32 +44,39 @@ export async function syncRoomStatus(db: Db, roomId: string) {
 
 export const ROOM_LET_REASON = "This room has been let to another tenant.";
 
-// Once a lease is active, close the room's pending applications whose move-in date falls within
-// it: approve the ones from people on the lease, decline the rest. Applications for after a
-// fixed-term lease ends stay open.
+// Once a lease is active, close the room's open applications from anyone whose stay would
+// overlap it (moving in before it ends): approve pending ones from people on the lease, and
+// decline the rest, including earlier approvals for people the landlord didn't put on it.
+// Applications to move in after a fixed-term lease ends stay as they are.
 export async function settleApplications(db: Db, lease: Pick<Lease, "id" | "roomId" | "endDate">) {
-  const pending = await db.application.findMany({
+  const open = await db.application.findMany({
     where: {
       roomId: lease.roomId,
-      status: "PENDING",
+      status: { in: ["PENDING", "APPROVED"] },
       ...(lease.endDate ? { moveInDate: { lte: lease.endDate } } : {}),
     },
-    select: { id: true, applicantId: true },
+    select: { id: true, applicantId: true, status: true },
   });
-  if (pending.length === 0) return;
+  if (open.length === 0) return;
   const onLease = await db.leaseTenant.findMany({
-    where: { leaseId: lease.id, tenant: { userId: { in: pending.map((a) => a.applicantId) } } },
+    where: { leaseId: lease.id, tenant: { userId: { in: open.map((a) => a.applicantId) } } },
     select: { tenant: { select: { id: true, userId: true } } },
   });
   const tenantOf = new Map(onLease.map((lt) => [lt.tenant.userId, lt.tenant.id]));
   const decidedAt = new Date();
-  for (const a of pending) {
-    const tenantId = tenantOf.get(a.applicantId);
+
+  // People on the lease: pending applications become approved (already-approved ones stay).
+  for (const a of open.filter((a) => a.status === "PENDING" && tenantOf.has(a.applicantId))) {
     await db.application.update({
       where: { id: a.id },
-      data: tenantId
-        ? { status: "APPROVED", decidedAt, tenantId }
-        : { status: "REJECTED", decidedAt, declineReason: ROOM_LET_REASON },
+      data: { status: "APPROVED", decidedAt, tenantId: tenantOf.get(a.applicantId) },
+    });
+  }
+  const declined = open.filter((a) => !tenantOf.has(a.applicantId)).map((a) => a.id);
+  if (declined.length > 0) {
+    await db.application.updateMany({
+      where: { id: { in: declined } },
+      data: { status: "REJECTED", decidedAt, declineReason: ROOM_LET_REASON },
     });
   }
 }

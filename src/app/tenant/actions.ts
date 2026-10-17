@@ -5,9 +5,11 @@ import { api, attempt } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
 import { fieldsFrom, type FormState } from "@/lib/validation";
 
+// Both of these can lose a race with the landlord (it was decided while the page was open).
+// attempt() turns that 409 into a result, and the refreshed page shows what happened instead.
 export async function withdrawApplication(applicationId: string) {
   await requireRole("TENANT");
-  await api.post(`/tenant/applications/${applicationId}/withdraw`);
+  await attempt(() => api.post(`/tenant/applications/${applicationId}/withdraw`));
   revalidatePath("/tenant");
 }
 
@@ -24,6 +26,6 @@ export async function reportPayment(_prev: ReportState, formData: FormData): Pro
 
 export async function cancelPaymentReport(reportId: string) {
   await requireRole("TENANT");
-  await api.post(`/tenant/payment-reports/${reportId}/cancel`);
+  await attempt(() => api.post(`/tenant/payment-reports/${reportId}/cancel`));
   revalidatePath("/tenant");
 }
