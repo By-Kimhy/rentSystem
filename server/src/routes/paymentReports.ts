@@ -5,8 +5,9 @@ import { paymentReportInclude, tenantPaymentReportSelect } from "../contract.js"
 import { prisma } from "../db.js";
 import { HttpError, parse } from "../errors.js";
 import { applyCredit } from "../lib/billing.js";
-import { today } from "../lib/dates.js";
-import { paymentReportSchema, rejectReportSchema } from "../validation.js";
+import { fromCents, toCents } from "../lib/money.js";
+import { toISODate, today } from "../lib/dates.js";
+import { confirmReportSchema, paymentReportSchema, rejectReportSchema } from "../validation.js";
 import { myLeases } from "./tenantHome.js";
 
 // ---- Tenant side, mounted at /api/tenant
@@ -63,11 +64,26 @@ async function ownedReport(id: string, landlordId: string) {
 
 const decided = () => new HttpError(409, "This report has already been dealt with.");
 
-// Confirming records the payment exactly as reported, paid by the reporter's tenant record on
-// the lease, and spends it on the oldest unpaid invoices like any other payment.
+// Confirming records the payment, paid by the reporter's tenant record on the lease, and spends it
+// on the oldest unpaid invoices like any other payment. The landlord may correct the amount or date
+// to what actually arrived; the payment's note then keeps what the tenant reported.
 landlordPaymentReportsRouter.post("/payment-reports/:id/confirm", async (req, res) => {
   const landlordId = currentUser(req).id;
   const report = await ownedReport(req.params.id, landlordId);
+  const fix = parse(confirmReportSchema, req.body ?? {});
+  if (fix.paidOn && fix.paidOn > today()) {
+    throw new HttpError(400, "Some fields are invalid.", { paidOn: ["The payment date can't be in the future."] });
+  }
+  const reportedCents = toCents(report.amount.toFixed(2));
+  const amountCents = fix.amount === null ? reportedCents : toCents(fix.amount);
+  const paidOn = fix.paidOn ?? report.paidOn;
+  const corrected = amountCents !== reportedCents || paidOn.getTime() !== report.paidOn.getTime();
+  const notes = [
+    report.note ? `Reported by tenant: ${report.note}` : "Reported by tenant.",
+    corrected ? `Tenant reported ${fromCents(reportedCents)} paid on ${toISODate(report.paidOn)}.` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
   const payer = await prisma.leaseTenant.findFirst({
     where: { leaseId: report.leaseId, tenant: { userId: report.reporterId } },
     select: { tenantId: true },
@@ -83,11 +99,11 @@ landlordPaymentReportsRouter.post("/payment-reports/:id/confirm", async (req, re
       data: {
         leaseId: report.leaseId,
         payerTenantId: payer?.tenantId ?? null,
-        amount: report.amount,
+        amount: fromCents(amountCents),
         method: report.method,
-        paidOn: report.paidOn,
+        paidOn,
         reference: report.reference,
-        notes: report.note ? `Reported by tenant: ${report.note}` : "Reported by tenant",
+        notes,
         receivedById: landlordId,
       },
     });

@@ -308,6 +308,8 @@ export const tenantPaymentReportSelect = {
   rejectReason: true,
   decidedAt: true,
   createdAt: true,
+  // What the landlord recorded on confirming, which can differ from the report.
+  payment: { select: { amount: true, paidOn: true } },
 } satisfies Prisma.PaymentReportSelect;
 export type TenantPaymentReport = Wire<Prisma.PaymentReportGetPayload<{ select: typeof tenantPaymentReportSelect }>>;
 

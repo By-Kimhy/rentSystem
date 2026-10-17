@@ -94,6 +94,36 @@ describe("payment reports", () => {
     expect((await landlord.agent.get("/api/landlord/payment-reports").expect(200)).body.reports).toEqual([]);
   });
 
+  it("records what actually arrived when the landlord corrects the report", async () => {
+    const { landlord, tenant, leaseId } = await letRoom();
+    const sent = await tenant.agent
+      .post("/api/tenant/payment-reports")
+      .send({ leaseId, amount: 120, method: "BANK", paidOn: isoDate(today()) })
+      .expect(201);
+    const id = sent.body.report.id as string;
+
+    await landlord.agent
+      .post(`/api/landlord/payment-reports/${id}/confirm`)
+      .send({ amount: "-5" })
+      .expect(400);
+    await landlord.agent
+      .post(`/api/landlord/payment-reports/${id}/confirm`)
+      .send({ paidOn: isoDate(addDays(today(), 2)) })
+      .expect(400);
+    const yesterday = isoDate(addDays(today(), -1));
+    const confirmed = await landlord.agent
+      .post(`/api/landlord/payment-reports/${id}/confirm`)
+      .send({ amount: "100", paidOn: yesterday })
+      .expect(200);
+    expect(confirmed.body.payment).toMatchObject({ amount: "100" });
+    expect(confirmed.body.payment.notes).toBe(`Reported by tenant. Tenant reported 120.00 paid on ${isoDate(today())}.`);
+
+    const home = await tenant.agent.get("/api/tenant/home").expect(200);
+    expect(home.body.paymentReports[0]).toMatchObject({ status: "CONFIRMED", amount: "120", payment: { amount: "100" } });
+    expect(home.body.payments[0]).toMatchObject({ amount: "100" });
+    expect(isoDate(new Date(home.body.payments[0].paidOn))).toBe(yesterday);
+  });
+
   it("lets the landlord reject and the tenant cancel, and keeps other accounts out", async () => {
     const { landlord, tenant, leaseId } = await letRoom();
     const send = () =>

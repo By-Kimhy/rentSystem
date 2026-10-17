@@ -293,6 +293,12 @@ function ReportPayment({ home }: { home: TenantHome }) {
                   <Badge className={PAYMENT_REPORT_STATUS_STYLES[r.status]}>{PAYMENT_REPORT_STATUS_LABELS[r.status]}</Badge>
                 </p>
                 {r.rejectReason && <p className="text-zinc-600 dark:text-zinc-400">Landlord: {r.rejectReason}</p>}
+                {r.payment &&
+                  (toCents(r.payment.amount) !== toCents(r.amount) || r.payment.paidOn.getTime() !== r.paidOn.getTime()) && (
+                    <p className="text-zinc-600 dark:text-zinc-400">
+                      Your landlord recorded {formatRent(r.payment.amount)} received on {formatDate(r.payment.paidOn)}.
+                    </p>
+                  )}
               </div>
               {r.status === "PENDING" && (
                 <ConfirmButton action={cancelPaymentReport.bind(null, r.id)} message="Cancel this report?">

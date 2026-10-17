@@ -1,5 +1,6 @@
 import type { PaymentReportItem } from "@api/contract";
 import { confirmPaymentReport, rejectPaymentReport } from "@/app/landlord/payments/actions";
+import { toISODate } from "@/lib/dates";
 import { PAYMENT_METHOD_LABELS, formatDate, formatRent } from "@/lib/format";
 import { ActionButton, ActionForm } from "./ActionForm";
 import { inputClass } from "./fields";
@@ -13,7 +14,7 @@ export function PaymentReports({ reports }: { reports: PaymentReportItem[] }) {
       <h2 className="text-lg font-semibold">Reported by tenants</h2>
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         Check each one against what you received. Confirming records it as a payment and applies it to the oldest unpaid
-        invoices.
+        invoices. If a different amount or date arrived, change it before confirming.
       </p>
       <ul className="space-y-3">
         {reports.map((r) => (
@@ -30,7 +31,23 @@ export function PaymentReports({ reports }: { reports: PaymentReportItem[] }) {
                 </p>
                 {r.note && <p className="mt-1 whitespace-pre-line text-sm">“{r.note}”</p>}
               </div>
-              <ActionForm action={confirmPaymentReport.bind(null, r.id)}>
+              <ActionForm action={confirmPaymentReport.bind(null, r.id)} className="flex flex-wrap items-end gap-2">
+                <label className="text-xs text-zinc-500">
+                  Received (USD)
+                  <input
+                    name="amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    defaultValue={r.amount}
+                    required
+                    className={`${inputClass} w-28`}
+                  />
+                </label>
+                <label className="text-xs text-zinc-500">
+                  On
+                  <input name="paidOn" type="date" defaultValue={toISODate(r.paidOn)} required className={inputClass} />
+                </label>
                 <ActionButton className={primaryButtonClass}>Confirm payment</ActionButton>
               </ActionForm>
             </div>

@@ -181,6 +181,16 @@ export const paymentReportSchema = z.object({
   note: optionalText,
 });
 
+// What the landlord actually received, when it differs from the report. Blank keeps the reported value.
+export const confirmReportSchema = z.object({
+  amount: z
+    .string()
+    .trim()
+    .transform((v) => (v === "" ? null : Number(v)))
+    .refine((v) => v === null || (Number.isFinite(v) && v > 0 && v <= 99_999_999), "Must be more than 0."),
+  paidOn: optionalDate,
+});
+
 export const rejectReportSchema = z.object({
   reason: z.string().trim().min(1, "Say why, so the tenant can follow up.").max(255),
 });
