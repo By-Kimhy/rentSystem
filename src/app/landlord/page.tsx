@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { daysOverdue, syncBilling } from "@/lib/billing";
+import type { Dashboard } from "@api/contract";
+import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
-import { addDays, nextPeriod, periodOf, periodStart, today } from "@/lib/dates";
-import { prisma } from "@/lib/db";
+import { daysOverdue, today } from "@/lib/dates";
 import { formatDate, formatRent, invoiceNumber } from "@/lib/format";
 import { fromCents, toCents } from "@/lib/money";
 import { DashboardLoading, DashboardShell } from "@/components/dashboard-shell";
@@ -26,47 +26,8 @@ const usd = (cents: number) => formatRent(Number(fromCents(cents)));
 
 async function LandlordContent() {
   const user = await requireRole("LANDLORD");
-  await syncBilling(user.id);
   const now = today();
-  const monthStart = periodStart(periodOf(now));
-  const monthEnd = addDays(periodStart(nextPeriod(periodOf(now))), -1);
-  const mine = { lease: { room: { property: { landlordId: user.id } } } };
-
-  const [rooms, occupied, billed, collected, unpaid, ending] = await Promise.all([
-    prisma.room.count({ where: { property: { landlordId: user.id } } }),
-    prisma.room.count({ where: { property: { landlordId: user.id }, status: "OCCUPIED" } }),
-    prisma.invoice.aggregate({
-      where: { ...mine, status: { not: "VOID" }, dueDate: { gte: monthStart, lte: monthEnd } },
-      _sum: { total: true },
-    }),
-    prisma.payment.aggregate({ where: { ...mine, paidOn: { gte: monthStart, lte: monthEnd } }, _sum: { amount: true } }),
-    prisma.invoice.findMany({
-      where: { ...mine, status: { in: ["OPEN", "PARTIAL", "OVERDUE"] } },
-      orderBy: [{ dueDate: "asc" }, { number: "asc" }],
-      include: {
-        lease: {
-          select: {
-            id: true,
-            room: { select: { name: true, property: { select: { name: true } } } },
-            tenants: { where: { isPrimary: true }, select: { tenant: { select: { id: true, fullName: true, phone: true } } } },
-          },
-        },
-      },
-    }),
-    prisma.lease.findMany({
-      where: {
-        room: { property: { landlordId: user.id } },
-        status: "ACTIVE",
-        endDate: { gte: now, lte: addDays(now, 60) },
-        renewedBy: null,
-      },
-      orderBy: { endDate: "asc" },
-      include: {
-        room: { select: { name: true, property: { select: { name: true } } } },
-        tenants: { where: { isPrimary: true }, select: { tenant: { select: { fullName: true } } } },
-      },
-    }),
-  ]);
+  const { rooms, occupied, billedCents, collectedCents, unpaid, ending } = await apiGet<Dashboard>("/landlord/dashboard");
 
   const balance = (i: (typeof unpaid)[number]) => toCents(i.total) - toCents(i.amountPaid);
   const overdue = unpaid.filter((i) => i.status === "OVERDUE");
@@ -74,8 +35,8 @@ async function LandlordContent() {
   const overdueCents = overdue.reduce((s, i) => s + balance(i), 0);
 
   const tiles = [
-    { label: "Billed this month", value: usd(toCents(billed._sum.total ?? 0)) },
-    { label: "Collected this month", value: usd(toCents(collected._sum.amount ?? 0)) },
+    { label: "Billed this month", value: usd(billedCents) },
+    { label: "Collected this month", value: usd(collectedCents) },
     { label: "Outstanding", value: usd(outstandingCents) },
     { label: "Overdue", value: usd(overdueCents), alert: overdueCents > 0 },
   ];

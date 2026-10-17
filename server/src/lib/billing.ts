@@ -1,8 +1,7 @@
 // Invoices, payments and overdue tracking. Every function here is idempotent: running the
 // billing sync twice, or from two requests at once, produces the same invoices.
-import "server-only";
 import { Prisma, type InvoiceStatus, type Lease } from "@prisma/client";
-import { prisma } from "./db";
+import { prisma } from "../db.js";
 import {
   addDays,
   dateInPeriod,
@@ -16,8 +15,8 @@ import {
   periodOf,
   periodStart,
   today,
-} from "./dates";
-import { fromCents, toCents } from "./money";
+} from "./dates.js";
+import { fromCents, toCents } from "./money.js";
 
 // Rent invoices are issued this many days before they are due.
 export const INVOICE_LEAD_DAYS = 7;
@@ -210,7 +209,7 @@ async function syncLease(lease: Lease, on: Date) {
 }
 
 // Bring a landlord's invoices up to date: issue new rent invoices, apply credit,
-// mark late ones overdue and add late fees. Called by the rent pages and the cron route.
+// mark late ones overdue and add late fees. Called by the rent endpoints and the cron endpoint.
 export async function syncBilling(landlordId?: string) {
   const on = today();
   const leases = await prisma.lease.findMany({

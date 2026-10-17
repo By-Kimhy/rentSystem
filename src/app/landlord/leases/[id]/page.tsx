@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { activateLease, deleteLease, endLease, renewLease } from "../actions";
 import { addCharge } from "../../invoices/actions";
 import { addDepositTransaction } from "../../payments/actions";
-import { depositSummary, leaseCreditCents, syncBilling } from "@/lib/billing";
+import type { LeaseResponse } from "@api/contract";
+import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
 import { today, toISODate } from "@/lib/dates";
-import { prisma } from "@/lib/db";
 import {
   LEASE_STATUS_LABELS,
   LEASE_STATUS_STYLES,
@@ -36,22 +35,8 @@ const usd = (cents: number) => formatRent(Number(fromCents(cents)));
 export default async function LeasePage({ params, searchParams }: PageProps<"/landlord/leases/[id]">) {
   const { id } = await params;
   const { error } = await searchParams;
-  const landlord = await requireRole("LANDLORD");
-  await syncBilling(landlord.id);
-  const lease = await prisma.lease.findFirst({
-    where: { id, room: { property: { landlordId: landlord.id } } },
-    include: {
-      room: { include: { property: true } },
-      tenants: { include: { tenant: true }, orderBy: { isPrimary: "desc" } },
-      invoices: { orderBy: [{ dueDate: "desc" }, { number: "desc" }] },
-      payments: { orderBy: [{ paidOn: "desc" }, { createdAt: "desc" }], include: { payer: { select: { fullName: true } } } },
-      renewedFrom: { select: { id: true } },
-      renewedBy: { select: { id: true, status: true } },
-    },
-  });
-  if (!lease) notFound();
-
-  const [credit, deposit] = await Promise.all([leaseCreditCents(lease.id), depositSummary(lease.id)]);
+  await requireRole("LANDLORD");
+  const { lease, creditCents: credit, deposit } = await apiGet<LeaseResponse>(`/landlord/leases/${id}`);
   const owed = lease.invoices
     .filter((i) => ["OPEN", "PARTIAL", "OVERDUE"].includes(i.status))
     .reduce((s, i) => s + toCents(i.total) - toCents(i.amountPaid), 0);

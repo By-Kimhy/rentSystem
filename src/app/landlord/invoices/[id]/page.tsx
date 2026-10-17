@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { addInvoiceLine, voidInvoice } from "../actions";
-import { daysOverdue, syncBilling } from "@/lib/billing";
+import type { InvoiceDetail } from "@api/contract";
+import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
-import { prisma } from "@/lib/db";
+import { daysOverdue } from "@/lib/dates";
 import {
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_STYLES,
@@ -21,22 +21,8 @@ import { Badge, BackLink, cardClass, primaryButtonClass, secondaryButtonClass } 
 
 export default async function InvoicePage({ params }: PageProps<"/landlord/invoices/[id]">) {
   const { id } = await params;
-  const landlord = await requireRole("LANDLORD");
-  await syncBilling(landlord.id);
-  const invoice = await prisma.invoice.findFirst({
-    where: { id, lease: { room: { property: { landlordId: landlord.id } } } },
-    include: {
-      lines: { orderBy: { createdAt: "asc" } },
-      allocations: { orderBy: { createdAt: "asc" }, include: { payment: true } },
-      lease: {
-        include: {
-          room: { include: { property: { include: { landlord: { select: { name: true, email: true } } } } } },
-          tenants: { where: { isPrimary: true }, include: { tenant: true } },
-        },
-      },
-    },
-  });
-  if (!invoice) notFound();
+  await requireRole("LANDLORD");
+  const { invoice } = await apiGet<{ invoice: InvoiceDetail }>(`/landlord/invoices/${id}`);
   const { lease } = invoice;
   const tenant = lease.tenants[0]?.tenant;
   const balance = invoice.status === "VOID" ? 0 : toCents(invoice.total) - toCents(invoice.amountPaid);

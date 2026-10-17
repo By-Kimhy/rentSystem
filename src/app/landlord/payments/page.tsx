@@ -1,22 +1,15 @@
 import Link from "next/link";
+import type { PaymentRow } from "@api/contract";
+import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
-import { prisma } from "@/lib/db";
 import { PaymentTable } from "@/components/landlord/PaymentTable";
 import { PageHeader, primaryButtonClass } from "@/components/landlord/ui";
 
 export const metadata = { title: "Payments · RentSystem" };
 
 export default async function PaymentsPage() {
-  const landlord = await requireRole("LANDLORD");
-  const payments = await prisma.payment.findMany({
-    where: { lease: { room: { property: { landlordId: landlord.id } } } },
-    orderBy: [{ paidOn: "desc" }, { createdAt: "desc" }],
-    take: 500,
-    include: {
-      payer: { select: { fullName: true } },
-      lease: { select: { room: { select: { name: true, property: { select: { name: true } } } } } },
-    },
-  });
+  await requireRole("LANDLORD");
+  const { payments } = await apiGet<{ payments: PaymentRow[] }>("/landlord/payments");
   return (
     <div className="space-y-6">
       <PageHeader title="Payments">

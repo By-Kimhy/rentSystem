@@ -8,9 +8,13 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+## Layout
+
+Next.js web app in `src/` (port 3000) and an Express API in `server/` (port 4000), as npm workspaces from the root. Only the API touches the database: Prisma schema and migrations are in `server/prisma/`, business rules in `server/src/lib/`, routes in `server/src/routes/`, and the response types both sides share in `server/src/contract.ts`. Web pages read through `apiGet` and Server Actions write through `api` in `src/lib/api.ts`. `npm run dev` starts both.
+
 ## Cloud Agent
 
-Node.js 22 and Docker are installed; the database is MySQL 8.4 (switched from PostgreSQL on 2026-10-17). Start it with `dockerd &` and then the `docker run` command in `README.md` ("Running locally"), which creates the `rent` user and `rentsystem` database. If the environment start script still launches PostgreSQL, it is no longer used. Then copy `.env.example` to `.env` if it is missing, apply migrations with `npm run db:deploy`, seed demo accounts with `npm run db:seed`, and run `npm run dev` on port 3000.
+Node.js 22 and Docker are installed; the database is MySQL 8.4. Start it with `dockerd &` and then the `docker run` command in `README.md` ("Running locally"), which creates the `rent` user and `rentsystem` database. If the environment start script still launches PostgreSQL, it is no longer used. Then copy `.env.example` to `.env` if it is missing, apply migrations with `npm run db:deploy`, seed demo accounts with `npm run db:seed`, and run `npm run dev` (API on 4000, web app on 3000). `npm test` runs the API tests against that database.
 
 `npm run db:migrate` (`prisma migrate dev`) is interactive. Use `npm run db:deploy` to apply existing migrations in this environment.
 

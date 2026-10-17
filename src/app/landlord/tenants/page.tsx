@@ -1,6 +1,7 @@
 import Link from "next/link";
+import type { TenantListItem } from "@api/contract";
+import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
-import { prisma } from "@/lib/db";
 import { TENANT_STATUS_STYLES, formatRent, tenantStatus } from "@/lib/format";
 import { fromCents, toCents } from "@/lib/money";
 import { inputClass } from "@/components/landlord/fields";
@@ -19,37 +20,10 @@ import {
 export const metadata = { title: "Tenants · RentSystem" };
 
 export default async function TenantsPage({ searchParams }: PageProps<"/landlord/tenants">) {
-  const landlord = await requireRole("LANDLORD");
+  await requireRole("LANDLORD");
   const { q: rawQ } = await searchParams;
   const q = typeof rawQ === "string" ? rawQ.trim() : "";
-  const tenants = await prisma.tenant.findMany({
-    where: {
-      landlordId: landlord.id,
-      ...(q
-        ? {
-            OR: [
-              { fullName: { contains: q } },
-              { phone: { contains: q } },
-              { email: { contains: q } },
-            ],
-          }
-        : {}),
-    },
-    orderBy: { fullName: "asc" },
-    include: {
-      leases: {
-        include: {
-          lease: {
-            select: {
-              status: true,
-              room: { select: { name: true, property: { select: { name: true } } } },
-              invoices: { where: { status: { in: ["OPEN", "PARTIAL", "OVERDUE"] } }, select: { total: true, amountPaid: true } },
-            },
-          },
-        },
-      },
-    },
-  });
+  const { tenants } = await apiGet<{ tenants: TenantListItem[] }>("/landlord/tenants", { q });
 
   return (
     <div className="space-y-6">

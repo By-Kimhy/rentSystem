@@ -2,39 +2,25 @@ import { invoiceLabel } from "@/components/landlord/InvoiceTable";
 import { PaymentForm } from "@/components/landlord/PaymentForm";
 import { inputClass } from "@/components/landlord/fields";
 import { BackLink, EmptyState, secondaryButtonClass } from "@/components/landlord/ui";
-import { syncBilling } from "@/lib/billing";
+import type { PaymentOptions } from "@api/contract";
+import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
 import { today, toISODate } from "@/lib/dates";
-import { prisma } from "@/lib/db";
 import { formatDate, formatRent } from "@/lib/format";
 import { fromCents, toCents } from "@/lib/money";
 
 export const metadata = { title: "Record payment · RentSystem" };
 
 export default async function NewPaymentPage({ searchParams }: PageProps<"/landlord/payments/new">) {
-  const landlord = await requireRole("LANDLORD");
-  await syncBilling(landlord.id);
+  await requireRole("LANDLORD");
   const { lease: rawLease } = await searchParams;
   const leaseId = typeof rawLease === "string" ? rawLease : "";
 
-  const leases = await prisma.lease.findMany({
-    where: { room: { property: { landlordId: landlord.id } }, status: { not: "DRAFT" } },
-    orderBy: [{ status: "asc" }, { startDate: "desc" }],
-    include: {
-      room: { select: { name: true, property: { select: { name: true } } } },
-      tenants: { orderBy: { isPrimary: "desc" }, include: { tenant: { select: { id: true, fullName: true } } } },
-    },
-  });
+  const { leases, invoices } = await apiGet<PaymentOptions>("/landlord/payments/options", { lease: leaseId });
   const lease = leases.find((l) => l.id === leaseId);
   const leaseName = (l: (typeof leases)[number]) =>
     `${l.tenants[0]?.tenant.fullName ?? "?"} · ${l.room.name}, ${l.room.property.name}${l.status === "ACTIVE" ? "" : " (ended)"}`;
 
-  const invoices = lease
-    ? await prisma.invoice.findMany({
-        where: { leaseId: lease.id, status: { in: ["OPEN", "PARTIAL", "OVERDUE"] } },
-        orderBy: [{ dueDate: "asc" }, { number: "asc" }],
-      })
-    : [];
   const owed = invoices.reduce((s, i) => s + toCents(i.total) - toCents(i.amountPaid), 0);
 
   return (
