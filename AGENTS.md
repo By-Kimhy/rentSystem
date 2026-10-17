@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Cloud Agent
 
-Node.js 22 and PostgreSQL 16 are already installed. On boot, the environment start script launches PostgreSQL, creates the `rent` role and `rentsystem` database when they are missing, copies `.env.example` to `.env` when `.env` is absent, applies migrations with `npm run db:deploy`, seeds demo accounts, and runs `npm run dev` on port 3000.
+Node.js 22 and Docker are installed; the database is MySQL 8.4 (switched from PostgreSQL on 2026-10-17). Start it with `dockerd &` and then the `docker run` command in `README.md` ("Running locally"), which creates the `rent` user and `rentsystem` database. If the environment start script still launches PostgreSQL, it is no longer used. Then copy `.env.example` to `.env` if it is missing, apply migrations with `npm run db:deploy`, seed demo accounts with `npm run db:seed`, and run `npm run dev` on port 3000.
 
 `npm run db:migrate` (`prisma migrate dev`) is interactive. Use `npm run db:deploy` to apply existing migrations in this environment.
 

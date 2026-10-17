@@ -35,7 +35,7 @@ async function activate(leaseId: string): Promise<string | null> {
     const lease = await tx.lease.findUniqueOrThrow({ where: { id: leaseId } });
     if (lease.status !== "DRAFT") return "Only a draft lease can be activated.";
     // Lock the room row so two activations for the same room can't both pass the check.
-    await tx.$queryRaw`SELECT id FROM "Room" WHERE id = ${lease.roomId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM Room WHERE id = ${lease.roomId} FOR UPDATE`;
     const clash = await overlappingLease(tx, {
       leaseId,
       roomId: lease.roomId,

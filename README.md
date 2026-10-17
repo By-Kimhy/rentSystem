@@ -2,7 +2,7 @@
 
 A web app for renting out rooms in apartments, condos and houses.
 
-Built with Next.js 16 (App Router, TypeScript, Tailwind CSS), PostgreSQL and Prisma.
+Built with Next.js 16 (App Router, TypeScript, Tailwind CSS), MySQL and Prisma.
 
 ## Roles
 
@@ -16,12 +16,16 @@ Visiting another role's page sends you to your own. Signed-out visitors are sent
 
 ## Running locally
 
-Requirements: Node.js 20+ and PostgreSQL 14+.
+Requirements: Node.js 20+ and MySQL 8+.
 
 ```bash
-# 1. Create a database (adjust user/password to taste)
-createuser -P rent          # password: rent
-createdb -O rent rentsystem
+# 1. Create a database and user (adjust the password to taste). The user needs
+#    CREATE rights so `prisma migrate dev` can make its temporary shadow database.
+mysql -u root -p -e "CREATE DATABASE rentsystem; CREATE USER 'rent'@'%' IDENTIFIED BY 'rent'; GRANT ALL ON *.* TO 'rent'@'%';"
+#    No MySQL installed? Run it in Docker instead:
+#    docker run -d --name mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=rentsystem \
+#      -e MYSQL_USER=rent -e MYSQL_PASSWORD=rent mysql:8.4
+#    docker exec mysql mysql -uroot -proot -e "GRANT ALL ON *.* TO 'rent'@'%'"
 
 # 2. Configure the app
 cp .env.example .env

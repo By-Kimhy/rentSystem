@@ -28,9 +28,9 @@ export default async function TenantsPage({ searchParams }: PageProps<"/landlord
       ...(q
         ? {
             OR: [
-              { fullName: { contains: q, mode: "insensitive" } },
+              { fullName: { contains: q } },
               { phone: { contains: q } },
-              { email: { contains: q, mode: "insensitive" } },
+              { email: { contains: q } },
             ],
           }
         : {}),
