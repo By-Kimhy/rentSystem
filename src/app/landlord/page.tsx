@@ -27,7 +27,8 @@ const usd = (cents: number) => formatRent(Number(fromCents(cents)));
 async function LandlordContent() {
   const user = await requireRole("LANDLORD");
   const now = today();
-  const { rooms, occupied, billedCents, collectedCents, unpaid, ending } = await apiGet<Dashboard>("/landlord/dashboard");
+  const { rooms, occupied, billedCents, collectedCents, unpaid, ending, pendingApplications, pendingPaymentReports } =
+    await apiGet<Dashboard>("/landlord/dashboard");
 
   const balance = (i: (typeof unpaid)[number]) => toCents(i.total) - toCents(i.amountPaid);
   const overdue = unpaid.filter((i) => i.status === "OVERDUE");
@@ -56,6 +57,22 @@ async function LandlordContent() {
           </Link>
         </div>
       </div>
+
+      {(pendingApplications > 0 || pendingPaymentReports > 0) && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm dark:border-blue-900 dark:bg-blue-950/40">
+          <span className="font-medium">Waiting for you:</span>
+          {pendingPaymentReports > 0 && (
+            <Link href="/landlord/payments" className={linkClass}>
+              {pendingPaymentReports === 1 ? "1 payment" : `${pendingPaymentReports} payments`} reported by tenants
+            </Link>
+          )}
+          {pendingApplications > 0 && (
+            <Link href="/landlord/applications" className={linkClass}>
+              {pendingApplications === 1 ? "1 application" : `${pendingApplications} applications`}
+            </Link>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
         {tiles.map((t) => (

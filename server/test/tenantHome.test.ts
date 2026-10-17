@@ -19,7 +19,7 @@ describe("tenant home", () => {
 
     const tenant = await signUp("TENANT", "Tia Tenant");
     const empty = await tenant.agent.get("/api/tenant/home").expect(200);
-    expect(empty.body).toEqual({ leases: [], invoices: [], payments: [] });
+    expect(empty.body).toEqual({ leases: [], invoices: [], payments: [], paymentReports: [] });
 
     const start = today();
     const applied = await tenant.agent

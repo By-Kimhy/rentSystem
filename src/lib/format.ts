@@ -1,4 +1,4 @@
-import type { ApplicationStatus, InvoiceStatus, LateFeeType, LeaseStatus, PaymentMethod, PropertyType, RoomStatus } from "@api/contract";
+import type { ApplicationStatus, InvoiceStatus, PaymentReportStatus, LateFeeType, LeaseStatus, PaymentMethod, PropertyType, RoomStatus } from "@api/contract";
 
 export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
   APARTMENT: "Apartment",
@@ -115,4 +115,18 @@ export const APPLICATION_STATUS_STYLES: Record<ApplicationStatus, string> = {
   APPROVED: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
   REJECTED: "bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200",
   WITHDRAWN: "bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200",
+};
+
+export const PAYMENT_REPORT_STATUS_LABELS: Record<PaymentReportStatus, string> = {
+  PENDING: "Waiting for landlord",
+  CONFIRMED: "Confirmed",
+  REJECTED: "Not confirmed",
+  CANCELLED: "Cancelled",
+};
+
+export const PAYMENT_REPORT_STATUS_STYLES: Record<PaymentReportStatus, string> = {
+  PENDING: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  CONFIRMED: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  REJECTED: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  CANCELLED: "bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200",
 };

@@ -22,12 +22,13 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  properties   Property[]
-  tenants      Tenant[]      @relation("LandlordTenants")
+  properties     Property[]
+  tenants        Tenant[]        @relation("LandlordTenants")
   // Landlords' tenant records for this account, linked when one of its applications is approved.
-  tenantOf     Tenant[]      @relation("TenantAccount")
-  payments     Payment[]
-  applications Application[]
+  tenantOf       Tenant[]        @relation("TenantAccount")
+  payments       Payment[]
+  applications   Application[]
+  paymentReports PaymentReport[]
 }
 
 enum PropertyType {
@@ -157,6 +158,7 @@ model Lease {
   tenants       LeaseTenant[]
   invoices      Invoice[]
   payments      Payment[]
+  paymentReports PaymentReport[]
   deposits      DepositTransaction[]
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
@@ -262,6 +264,8 @@ model Payment {
   reversalOfId  String?             @unique
   reversalOf    Payment?            @relation("PaymentReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
   reversedBy    Payment?            @relation("PaymentReversal")
+  // The tenant's report this payment confirmed, if it came from one.
+  report        PaymentReport?
   allocations   PaymentAllocation[]
   createdAt     DateTime            @default(now())
 
@@ -332,4 +336,35 @@ model Application {
 
   @@index([roomId, status])
   @@index([applicantId])
+}
+
+enum PaymentReportStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
+}
+
+// A tenant telling their landlord they paid. Confirming it records the Payment.
+model PaymentReport {
+  id           String              @id @default(cuid())
+  leaseId      String
+  lease        Lease               @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  reporterId   String
+  reporter     User                @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  amount       Decimal             @db.Decimal(10, 2)
+  method       PaymentMethod
+  paidOn       DateTime            @db.Date
+  reference    String?             @db.VarChar(255)
+  note         String?             @db.Text
+  status       PaymentReportStatus @default(PENDING)
+  rejectReason String?             @db.VarChar(255)
+  decidedAt    DateTime?
+  paymentId    String?             @unique
+  payment      Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([leaseId, status])
+  @@index([reporterId])
 }

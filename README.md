@@ -87,6 +87,8 @@ When a lease on a room is activated, the room's other pending applications close
 
 Once the lease is saved, the tenant's dashboard at `/tenant` shows their rental (room, address, rent, due day, lease dates, deposit held, late-fee terms and the landlord's contact), their balance due and next due date, any credit, every invoice (each with a printable page at `/tenant/invoices/:id`) and every payment the landlord has recorded. Draft leases stay hidden until they are activated, and tenants never see the landlord's notes, other tenants' contact or ID details, or voided invoices. Only tenant records linked through an approved application show up this way; tenants a landlord adds by hand have no account link.
 
+From the same page a tenant can report a payment they made (amount, method, date, optional reference and note). The landlord sees reports under "Reported by tenants" on `/landlord/payments`, with a reminder on the dashboard. **Confirm** records the payment exactly as reported, paid by that tenant, and applies it to the oldest unpaid invoices like any other payment. **Reject** asks for a reason, which the tenant sees. A tenant can cancel a report while it is still waiting.
+
 ## Tenants, leases and rent
 
 Everything a landlord needs to collect rent, under `/landlord`:
@@ -127,7 +129,8 @@ All endpoints are under `/api` on port 4000. Bodies are JSON (or multipart where
 | Invoices | `GET /landlord/invoices?show=overdue\|paid\|void\|all`, `GET /landlord/invoices/:id`, `POST /landlord/invoices/:id/lines`, `POST /landlord/invoices/:id/void` |
 | Payments | `GET /landlord/payments`, `GET /landlord/payments/options?lease=`, `POST /landlord/payments`, `GET /landlord/payments/:id`, `POST /landlord/payments/:id/reverse` |
 | Applications (tenant) | `GET, POST /tenant/applications`, `POST /tenant/applications/:id/withdraw` |
-| Tenant's own rentals | `GET /tenant/home` (leases, invoices, payments), `GET /tenant/invoices/:id` |
+| Tenant's own rentals | `GET /tenant/home` (leases, invoices, payments, payment reports), `GET /tenant/invoices/:id` |
+| Payment reports | `POST /tenant/payment-reports`, `POST /tenant/payment-reports/:id/cancel`, `GET /landlord/payment-reports?show=all`, `POST /landlord/payment-reports/:id/confirm`, `.../reject` |
 | Applications (landlord) | `GET /landlord/applications?show=all`, `GET /landlord/applications/:id`, `POST /landlord/applications/:id/approve`, `.../reject` |
 | Billing job | `POST /cron/billing` with `Authorization: Bearer $CRON_SECRET` |
 

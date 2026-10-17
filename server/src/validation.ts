@@ -171,3 +171,16 @@ export const applicationSchema = z.object({
   occupants: z.coerce.number({ message: "Must be a whole number." }).int("Must be a whole number.").min(1, "At least 1 person.").max(50),
   message: optionalText,
 });
+
+export const paymentReportSchema = z.object({
+  leaseId: z.string().min(1, "Choose a lease."),
+  amount: positiveMoney,
+  method: z.enum(["CASH", "BANK", "CARD", "WALLET"], { message: "Choose how you paid." }),
+  paidOn: requiredDate("Choose the date you paid."),
+  reference: optionalLine,
+  note: optionalText,
+});
+
+export const rejectReportSchema = z.object({
+  reason: z.string().trim().min(1, "Say why, so the tenant can follow up.").max(255),
+});

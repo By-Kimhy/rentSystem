@@ -11,6 +11,7 @@ import { authRouter } from "./routes/auth.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { invoicesRouter } from "./routes/invoices.js";
 import { leasesRouter } from "./routes/leases.js";
+import { landlordPaymentReportsRouter, tenantPaymentReportsRouter } from "./routes/paymentReports.js";
 import { paymentsRouter } from "./routes/payments.js";
 import { propertiesRouter } from "./routes/properties.js";
 import { publicRouter } from "./routes/public.js";
@@ -44,12 +45,13 @@ export function createApp() {
     invoicesRouter,
     paymentsRouter,
     landlordApplicationsRouter,
+    landlordPaymentReportsRouter,
   );
   app.use("/api/landlord", landlord);
 
   const tenant = express.Router();
   tenant.use(requireRole("TENANT"));
-  tenant.use(tenantHomeRouter, tenantApplicationsRouter);
+  tenant.use(tenantHomeRouter, tenantApplicationsRouter, tenantPaymentReportsRouter);
   app.use("/api/tenant", tenant);
 
   app.use("/api", publicRouter);

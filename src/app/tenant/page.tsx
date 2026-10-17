@@ -1,13 +1,17 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import type { MyApplication, TenantHome } from "@api/contract";
-import { withdrawApplication } from "./actions";
+import { cancelPaymentReport, withdrawApplication } from "./actions";
 import { apiGet } from "@/lib/api";
 import { requireRole } from "@/lib/dal";
+import { today, toISODate } from "@/lib/dates";
 import {
   APPLICATION_STATUS_LABELS,
   APPLICATION_STATUS_STYLES,
   LEASE_STATUS_LABELS,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_REPORT_STATUS_LABELS,
+  PAYMENT_REPORT_STATUS_STYLES,
   describeLateFee,
   formatDate,
   formatRent,
@@ -19,6 +23,7 @@ import { ConfirmButton } from "@/components/landlord/ConfirmButton";
 import { InvoiceTable } from "@/components/landlord/InvoiceTable";
 import { PaymentTable } from "@/components/landlord/PaymentTable";
 import { Badge, Details, EmptyState, cardClass, linkClass } from "@/components/landlord/ui";
+import { ReportPaymentForm } from "@/components/tenant/ReportPaymentForm";
 
 export const metadata = { title: "Tenant dashboard · RentSystem" };
 
@@ -80,10 +85,11 @@ async function TenantContent() {
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">Payments</h2>
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Payments appear here once your landlord records them.
+              Payments appear here once your landlord records or confirms them.
             </p>
             <PaymentTable payments={home.payments} linked={false} />
           </section>
+          <ReportPayment home={home} />
         </>
       )}
 
@@ -244,6 +250,56 @@ function Balance({ home }: { home: TenantHome }) {
           {note && <p className="text-sm text-zinc-500">{note}</p>}
         </div>
       ))}
+    </section>
+  );
+}
+
+// Telling the landlord about a payment, and what happened to earlier reports.
+function ReportPayment({ home }: { home: TenantHome }) {
+  const owedCents = home.invoices
+    .filter((i) => ["OPEN", "PARTIAL", "OVERDUE"].includes(i.status))
+    .reduce((s, i) => s + toCents(i.total) - toCents(i.amountPaid), 0);
+  const leases = [...home.leases]
+    .sort((a, b) => Number(b.status === "ACTIVE") - Number(a.status === "ACTIVE"))
+    .map((l) => ({ id: l.id, label: `${l.room.name}, ${l.room.property.name} (${LEASE_STATUS_LABELS[l.status]})` }));
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-xl font-semibold">Report a payment</h2>
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        Paid by transfer or in person? Let your landlord know. It counts towards your balance once they confirm it.
+      </p>
+      <div className={`${cardClass} p-6`}>
+        <ReportPaymentForm
+          leases={leases}
+          defaultAmount={owedCents > 0 ? fromCents(owedCents) : ""}
+          today={toISODate(today())}
+        />
+      </div>
+      {home.paymentReports.length > 0 && (
+        <ul className={`${cardClass} divide-y divide-zinc-200 text-sm dark:divide-zinc-800`}>
+          {home.paymentReports.map((r) => (
+            <li key={r.id} className="flex flex-wrap items-start justify-between gap-3 p-4">
+              <div className="space-y-1">
+                <p className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{formatRent(r.amount)}</span>
+                  <span className="text-zinc-500">
+                    {PAYMENT_METHOD_LABELS[r.method]} · paid {formatDate(r.paidOn)}
+                    {r.reference && ` · ${r.reference}`}
+                  </span>
+                  <Badge className={PAYMENT_REPORT_STATUS_STYLES[r.status]}>{PAYMENT_REPORT_STATUS_LABELS[r.status]}</Badge>
+                </p>
+                {r.rejectReason && <p className="text-zinc-600 dark:text-zinc-400">Landlord: {r.rejectReason}</p>}
+              </div>
+              {r.status === "PENDING" && (
+                <ConfirmButton action={cancelPaymentReport.bind(null, r.id)} message="Cancel this report?">
+                  Cancel
+                </ConfirmButton>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

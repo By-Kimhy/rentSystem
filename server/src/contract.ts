@@ -219,6 +219,9 @@ export type Dashboard = {
   collectedCents: number;
   unpaid: Wire<Prisma.InvoiceGetPayload<{ include: typeof dashboardUnpaidInclude }>>[];
   ending: Wire<Prisma.LeaseGetPayload<{ include: typeof dashboardEndingInclude }>>[];
+  // Waiting for the landlord: tenants' applications and reported payments.
+  pendingApplications: number;
+  pendingPaymentReports: number;
 };
 
 // ---- Errors
@@ -293,12 +296,37 @@ export const tenantPaymentSelect = {
 } satisfies Prisma.PaymentSelect;
 export type TenantPayment = Wire<Prisma.PaymentGetPayload<{ select: typeof tenantPaymentSelect }>>;
 
+export const tenantPaymentReportSelect = {
+  id: true,
+  leaseId: true,
+  amount: true,
+  method: true,
+  paidOn: true,
+  reference: true,
+  note: true,
+  status: true,
+  rejectReason: true,
+  decidedAt: true,
+  createdAt: true,
+} satisfies Prisma.PaymentReportSelect;
+export type TenantPaymentReport = Wire<Prisma.PaymentReportGetPayload<{ select: typeof tenantPaymentReportSelect }>>;
+
 export type TenantHome = {
   leases: (TenantLease & { creditCents: number; depositHeldCents: number })[];
   // Every invoice on those leases except void ones, newest due first.
   invoices: Invoice[];
   payments: TenantPayment[];
+  // Payments the tenant reported, newest first.
+  paymentReports: TenantPaymentReport[];
 };
+
+// ---- Payment reports, landlord side
+
+export const paymentReportInclude = {
+  reporter: { select: { name: true, email: true } },
+  lease: { select: { id: true, room: roomLabel } },
+} satisfies Prisma.PaymentReportInclude;
+export type PaymentReportItem = Wire<Prisma.PaymentReportGetPayload<{ include: typeof paymentReportInclude }>>;
 
 export const tenantInvoiceInclude = {
   lines: { orderBy: { createdAt: "asc" } },
@@ -324,6 +352,7 @@ export type TenantInvoice = Wire<Prisma.InvoiceGetPayload<{ include: typeof tena
 // Enum string unions, for the web app.
 export type {
   ApplicationStatus,
+  PaymentReportStatus,
   DepositTransactionKind,
   InvoiceKind,
   InvoiceStatus,
