@@ -22,6 +22,7 @@
     "typecheck": "next typegen && tsc --noEmit && npm run typecheck -w server"
   },
   "dependencies": {
+    "@next/third-parties": "16.4.0",
     "jose": "^6.2.12",
     "next": "16.4.0",
     "react": "19.3.0",
