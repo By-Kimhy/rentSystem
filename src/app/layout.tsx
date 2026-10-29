@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import { UserNav } from "@/components/user-nav";
 import "./globals.css";
 
@@ -14,6 +15,10 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+// Google Analytics 4 measurement ID (G-XXXXXXXXXX). Inlined at build time; when it is unset no
+// analytics script is loaded.
+const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
 export const metadata: Metadata = {
   title: "RentSystem",
@@ -44,6 +49,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </header>
         <main className="flex flex-1 flex-col px-6">{children}</main>
       </body>
+      {GA_MEASUREMENT_ID ? <GoogleAnalytics gaId={GA_MEASUREMENT_ID} /> : null}
     </html>
   );
 }

@@ -163,6 +163,22 @@ curl -b jar localhost:4000/api/landlord/dashboard
 
 To run the parts on different hosts, set `API_URL` for the web app (where it finds the API), and `API_PORT` and `CORS_ORIGINS` for the API. Both need the same `SESSION_SECRET`.
 
+## Google Analytics
+
+The web app sends page views to Google Analytics 4 when `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set, and loads no analytics script when it is empty (the default).
+
+1. In [Google Analytics](https://analytics.google.com), open **Admin → Data collection and modification → Data streams**, and pick your web stream (or add one for your site's URL).
+2. Copy the **Measurement ID** at the top right of the stream details. It looks like `G-XXXXXXXXXX`.
+3. Put it in `.env` at the repository root (or in your host's environment variables):
+
+   ```bash
+   NEXT_PUBLIC_GA_MEASUREMENT_ID="G-XXXXXXXXXX"
+   ```
+
+4. Restart `npm run dev`, or rebuild with `npm run build` for production, since the ID is built into the browser code.
+
+Page changes inside the app are counted through GA4's enhanced measurement ("Page changes based on browser history events", on by default). To check it works, open the site and watch **Reports → Realtime** in Google Analytics.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every pull request and every push to `main`. It starts MySQL 8.4, applies the migrations, then runs `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`. Run the same commands locally before pushing.
