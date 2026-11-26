@@ -5,7 +5,7 @@ import { SESSION_COOKIE, decrypt } from "@/lib/jwt";
 import { ROLE_HOME } from "@/lib/roles";
 
 const PROTECTED = ["/dashboard", "/admin", "/landlord", "/tenant"];
-const AUTH_PAGES = ["/login", "/signup"];
+const AUTH_PAGES = ["/login", "/signup", "/forgot-password"];
 
 export async function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
@@ -35,5 +35,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*", "/landlord/:path*", "/tenant/:path*", "/login", "/signup"],
+  matcher: ["/dashboard/:path*", "/admin/:path*", "/landlord/:path*", "/tenant/:path*", "/login", "/signup", "/forgot-password"],
 };

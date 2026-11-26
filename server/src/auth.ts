@@ -32,11 +32,11 @@ export async function signSession(payload: SessionPayload) {
     .sign(key());
 }
 
-async function verifySession(token: string | undefined): Promise<SessionPayload | null> {
+async function verifySession(token: string | undefined): Promise<(SessionPayload & { issuedAt: number }) | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify<SessionPayload>(token, key(), { algorithms: ["HS256"] });
-    return { userId: payload.userId, role: payload.role };
+    return { userId: payload.userId, role: payload.role, issuedAt: payload.iat ?? 0 };
   } catch {
     return null;
   }
@@ -63,18 +63,25 @@ function tokenFrom(req: Request) {
   return req.cookies?.[SESSION_COOKIE] as string | undefined;
 }
 
+// True when the session was signed before the password last changed. JWT times are in whole
+// seconds, so a session signed in the same second as the change still counts.
+export function signedBeforePasswordChange(issuedAt: number, passwordChangedAt: Date | null) {
+  return passwordChangedAt !== null && issuedAt < Math.floor(passwordChangedAt.getTime() / 1000);
+}
+
 /**
  * Loads the signed-in user, if any, onto req.user. The user is re-read from the database every
- * request, so a disabled account counts as signed out straight away.
+ * request, so a disabled account counts as signed out straight away, and so does every session
+ * from before a password reset.
  */
 export async function loadUser(req: Request, _res: Response, next: NextFunction) {
   const session = await verifySession(tokenFrom(req));
   if (session) {
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { id: true, name: true, email: true, role: true, disabledAt: true },
+      select: { id: true, name: true, email: true, role: true, disabledAt: true, passwordChangedAt: true },
     });
-    if (user && !user.disabledAt) req.user = { id: user.id, name: user.name, email: user.email, role: user.role };
+    if (user && !user.disabledAt && !signedBeforePasswordChange(session.issuedAt, user.passwordChangedAt)) req.user = { id: user.id, name: user.name, email: user.email, role: user.role };
   }
   next();
 }

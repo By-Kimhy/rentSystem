@@ -43,6 +43,7 @@ export default async function LeasePage({ params, searchParams }: PageProps<"/la
   const ended = lease.status === "ENDED" || lease.status === "TERMINATED";
   const lastDay = lease.terminatedOn ?? lease.endDate;
   const todayIso = toISODate(today());
+  const primary = lease.tenants.find((t) => t.isPrimary)?.tenant;
 
   return (
     <div className="space-y-8">
@@ -198,6 +199,39 @@ export default async function LeasePage({ params, searchParams }: PageProps<"/la
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">Payments</h2>
           <PaymentTable payments={lease.payments} />
+        </section>
+      )}
+
+      {lease.status !== "DRAFT" && (
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold">Email reminders</h2>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            The primary tenant is emailed a few days before rent is due, when it turns overdue (then weekly), and 30 and 7
+            days before a fixed-term lease ends. You get a copy of lease-ending notices.
+          </p>
+          {primary && !primary.email && !primary.userId && (
+            <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+              {primary.fullName} has no email address, so they get no reminders.{" "}
+              <Link href={`/landlord/tenants/${primary.id}/edit`} className="underline">
+                Add their email
+              </Link>{" "}
+              or invite them to sign up.
+            </p>
+          )}
+          {lease.reminders.length === 0 ? (
+            <p className="text-sm text-zinc-500">No reminders sent yet.</p>
+          ) : (
+            <ul className={`${cardClass} divide-y divide-zinc-200 text-sm dark:divide-zinc-800`}>
+              {lease.reminders.map((r) => (
+                <li key={r.id} className="flex flex-wrap justify-between gap-2 p-3">
+                  <span>{r.subject}</span>
+                  <span className="text-zinc-500">
+                    {r.recipient} · {formatDate(r.sentAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 

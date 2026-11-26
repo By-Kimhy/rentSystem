@@ -55,6 +55,29 @@ export async function login(_state: FormState, formData: FormData): Promise<Form
   redirect(safeNext(formData.get("next")) ?? ROLE_HOME[result.user.role]);
 }
 
+export async function requestPasswordReset(_state: FormState, formData: FormData): Promise<FormState> {
+  const email = field(formData, "email");
+  const result = await attempt(() => api.post("/auth/forgot-password", { email }));
+  if (!result.ok) return { errors: result.fieldErrors, message: result.fieldErrors ? undefined : result.error, values: { email } };
+  // The API answers the same whether or not the email has an account.
+  return { message: "sent", values: { email } };
+}
+
+export async function resetPassword(token: string, _state: FormState, formData: FormData): Promise<FormState> {
+  const password = field(formData, "password");
+  if (password !== field(formData, "confirm")) return { errors: { confirm: ["The two passwords don't match."] } };
+  let result;
+  try {
+    result = await api.post<AuthResponse>(`/auth/reset-password/${encodeURIComponent(token)}`, { password });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 400) return { errors: e.fieldErrors };
+    if (e instanceof ApiError && e.status === 404) return { message: e.message };
+    throw e;
+  }
+  await createSession(result.token);
+  redirect(ROLE_HOME[result.user.role]);
+}
+
 export async function logout() {
   await deleteSession();
   redirect("/login");
