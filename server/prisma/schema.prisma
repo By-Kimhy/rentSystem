@@ -21,6 +21,8 @@ model User {
   role         Role     @default(TENANT)
   // Set by an admin. A disabled account can't sign in, and its sessions stop working.
   disabledAt   DateTime?
+  // Sessions signed before this stop working, so a password reset signs out every device.
+  passwordChangedAt DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -31,6 +33,21 @@ model User {
   payments       Payment[]
   applications   Application[]
   paymentReports PaymentReport[]
+  passwordResets PasswordReset[]
+}
+
+// A "forgot password" link. Only the SHA-256 of the link's secret is stored; it works once,
+// for PASSWORD_RESET_MINUTES.
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @db.Char(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
 }
 
 enum PropertyType {
@@ -165,6 +182,7 @@ model Lease {
   payments      Payment[]
   paymentReports PaymentReport[]
   deposits      DepositTransaction[]
+  reminders     Reminder[]
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
@@ -216,6 +234,7 @@ model Invoice {
   voidReason     String? @db.VarChar(255)
   lines          InvoiceLine[]
   allocations    PaymentAllocation[]
+  reminders      Reminder[]
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
@@ -372,4 +391,28 @@ model PaymentReport {
 
   @@index([leaseId, status])
   @@index([reporterId])
+}
+
+enum ReminderKind {
+  RENT_DUE
+  RENT_OVERDUE
+  LEASE_ENDING
+}
+
+// An email reminder that went out (see server/src/lib/reminders.ts). `key` names the invoice or
+// lease and the stage, so each reminder is sent once however often the job runs.
+model Reminder {
+  id        String       @id @default(cuid())
+  key       String       @unique @db.VarChar(191)
+  kind      ReminderKind
+  leaseId   String
+  lease     Lease        @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  invoiceId String?
+  invoice   Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  recipient String       @db.VarChar(255)
+  subject   String       @db.VarChar(255)
+  sentAt    DateTime     @default(now())
+
+  @@index([leaseId, sentAt])
+  @@index([invoiceId])
 }

@@ -154,6 +154,14 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Enter your password."),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z.email("Enter a valid email.").trim().toLowerCase(),
+});
+
+export const resetPasswordSchema = z.object({
+  password: z.string().min(8, "Password must be at least 8 characters.").max(200),
+});
+
 export const reverseSchema = z.object({ reason: z.string().trim().min(1, "Give a reason for the reversal.").max(255) });
 
 export const roomSearchSchema = z.object({

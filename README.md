@@ -68,6 +68,30 @@ Change the admin password via `.env` before deploying anywhere public.
 - The API accepts the token as that cookie or as `Authorization: Bearer <token>`, and re-reads the user from the database on every request (`server/src/auth.ts`). Every landlord endpoint only touches the signed-in landlord's own rows; anyone else's ids return 404.
 - The web app keeps the token in its own httpOnly `session` cookie and sends it to the API as a bearer token. `src/proxy.ts` does fast cookie-only redirects; `src/lib/dal.ts` (`getCurrentUser()`, `requireRole(...)`) asks the API who is signed in.
 - Sign-up, login and logout are Server Actions in `src/app/actions/auth.ts`.
+- **Forgot password:** "Forgot password?" on the sign-in page (`/forgot-password`) emails a link to `/reset-password/<token>`. The link works once and expires after an hour; only its SHA-256 is stored, an account can ask for at most 3 links an hour, and the form says the same thing whether or not the email has an account. Saving a new password signs that browser in, signs every other device out (sessions issued before `User.passwordChangedAt` stop working), and emails a "your password was changed" notice.
+
+## Email
+
+The API sends email for password resets and rent reminders (`server/src/lib/mail.ts`). Pick how with `MAIL_PROVIDER` in `.env`:
+
+| `MAIL_PROVIDER` | What happens | Settings |
+| --- | --- | --- |
+| `console` (default) | Each email is printed to the API's terminal, so reset links work in development without a mail server | none |
+| `smtp` | Sent through any SMTP server: Gmail (with an app password), Mailgun, Amazon SES, Postmark, Brevo… | `SMTP_URL`, or `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` (`SMTP_SECURE`) |
+| `resend` | Sent through the [Resend](https://resend.com) API | `RESEND_API_KEY` |
+| `none` | Nothing is sent | none |
+
+Also set `MAIL_FROM` (an address your provider lets you send from) and `APP_URL` (the web app's public address, used for the links in emails).
+
+### Rent and lease reminders
+
+The primary tenant on each lease is emailed (at the email on their tenant record, or their account's email if they have one):
+
+- **Rent due soon:** once, `REMINDER_DUE_DAYS` (default 3) days or less before an unpaid invoice is due.
+- **Overdue:** when an invoice turns overdue, then every `REMINDER_OVERDUE_EVERY_DAYS` (default 7) days, at most `REMINDER_OVERDUE_MAX` (default 3) times.
+- **Lease ending:** 30 and 7 days before a fixed-term lease that hasn't been renewed ends. The landlord gets their own copy.
+
+The API runs this by itself every hour once it is past `REMINDER_HOUR` (default 9, in `BILLING_TIMEZONE`). Every reminder is recorded before it is sent, so each one goes out once however often the job runs, and a failed send is retried on the next run. To schedule it yourself instead, set `REMINDER_SCHEDULER=off` and call `POST /api/cron/reminders` with `Authorization: Bearer $CRON_SECRET` once a day. The lease page lists the reminders sent for that lease, and warns when the primary tenant has no email.
 
 ## Properties and rooms
 
@@ -121,7 +145,7 @@ All endpoints are under `/api` on port 4000. Bodies are JSON (or multipart where
 
 | Area | Endpoints |
 | ---- | --------- |
-| Accounts | `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` |
+| Accounts | `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `POST /auth/forgot-password`, `GET, POST /auth/reset-password/:token` |
 | Public | `GET /rooms?city=&type=&minRent=&maxRent=&occupants=` (available rooms), `GET /rooms/:id`, `GET /photos/:fileName`, `GET /health` |
 | Admin | `GET /admin/overview`, `GET /admin/users?q=`, `GET /admin/properties?q=` (newest 50 of each, with `total`), `POST /admin/users/:id/disable`, `.../enable` |
 | Landlord dashboard | `GET /landlord/dashboard` |
@@ -135,7 +159,7 @@ All endpoints are under `/api` on port 4000. Bodies are JSON (or multipart where
 | Tenant invites | `POST, DELETE /landlord/tenants/:id/invite`, `GET /invites/:token` (public), `POST /tenant/invites/:token/accept` |
 | Payment reports | `POST /tenant/payment-reports`, `POST /tenant/payment-reports/:id/cancel`, `GET /landlord/payment-reports?show=all`, `POST /landlord/payment-reports/:id/confirm`, `.../reject` |
 | Applications (landlord) | `GET /landlord/applications?show=all`, `GET /landlord/applications/:id`, `POST /landlord/applications/:id/approve`, `.../reject` |
-| Billing job | `POST /cron/billing` with `Authorization: Bearer $CRON_SECRET` |
+| Daily jobs | `POST /cron/billing`, `POST /cron/reminders` (returns `{ sent, skipped, failed }`), with `Authorization: Bearer $CRON_SECRET` |
 
 Saving a lease with `"intent": "activate"` activates it straight away; if the room is already let for those dates the draft is still saved and the response carries `activationError`. A payment may include `"allocations": { "<invoiceId>": "100.00" }` to split it by hand.
 

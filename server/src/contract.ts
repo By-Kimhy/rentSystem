@@ -132,6 +132,7 @@ export const leaseDetailInclude = {
   payments: { orderBy: [{ paidOn: "desc" }, { createdAt: "desc" }], include: { payer: payerName } },
   renewedFrom: { select: { id: true } },
   renewedBy: { select: { id: true, status: true } },
+  reminders: { orderBy: { sentAt: "desc" }, take: 20, select: { id: true, kind: true, recipient: true, subject: true, sentAt: true } },
 } satisfies Prisma.LeaseInclude;
 export type LeaseDetail = Wire<Prisma.LeaseGetPayload<{ include: typeof leaseDetailInclude }>>;
 export type Lease = Wire<Prisma.LeaseGetPayload<object>>;

@@ -19,5 +19,7 @@ export const config = {
     .filter(Boolean),
   production: process.env.NODE_ENV === "production",
   sessionSecret: () => required("SESSION_SECRET"),
+  // The web app's public address, for links in emails.
+  appUrl: () => (process.env.APP_URL || process.env.CORS_ORIGINS?.split(",")[0]?.trim() || "http://localhost:3000").replace(/\/+$/, ""),
   uploadDir: () => path.resolve(repoRoot, process.env.UPLOAD_DIR ?? "./uploads"),
 };

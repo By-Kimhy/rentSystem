@@ -4,6 +4,7 @@ import { adminPropertySelect, userListSelect } from "../contract.js";
 import { prisma } from "../db.js";
 import { HttpError } from "../errors.js";
 import { syncBilling } from "../lib/billing.js";
+import { sendReminders } from "../lib/reminders.js";
 import { addDays, nextPeriod, periodOf, periodStart, today } from "../lib/dates.js";
 import { toCents } from "../lib/money.js";
 
@@ -94,18 +95,28 @@ adminRouter.post("/users/:id/enable", async (req, res) => {
   res.json({ user: await setDisabled(req.params.id, currentUser(req).id, false) });
 });
 
-// Daily billing run for a scheduler (cron, GitHub Actions…):
+// Daily jobs for a scheduler (cron, GitHub Actions…), e.g.
 //   curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://localhost:4000/api/cron/billing
-// The rent endpoints also bring billing up to date whenever a landlord opens them,
-// so this only matters for keeping statuses current while nobody is looking.
+// The rent endpoints also bring billing up to date whenever a landlord opens them, so /billing
+// only matters for keeping statuses current while nobody is looking. /reminders brings billing
+// up to date and sends the email reminders that are due; the API also runs it by itself every
+// hour (see scheduler.ts), so calling it is only needed when that is turned off.
 export const cronRouter = Router();
 
-cronRouter.all("/billing", async (req, res) => {
+cronRouter.use((req, res, next) => {
   const secret = process.env.CRON_SECRET;
   if (!secret || req.get("authorization") !== `Bearer ${secret}`) {
     res.status(401).json({ error: "Unauthorized." });
     return;
   }
+  next();
+});
+
+cronRouter.all("/billing", async (_req, res) => {
   await syncBilling();
   res.json({ ok: true });
+});
+
+cronRouter.all("/reminders", async (_req, res) => {
+  res.json({ ok: true, ...(await sendReminders()) });
 });
